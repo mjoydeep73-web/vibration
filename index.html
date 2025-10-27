@@ -1,14 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Vibration Sensor Chart</title>
+  <meta charset="UTF-8">
+  <title>Vibration Sensor Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
+  <style>
+    body { font-family: Arial; margin: 30px; }
+    canvas { max-width: 1000px; }
+  </style>
 </head>
 <body>
-  <h2>Vibration Sensor Real-time Chart</h2>
-  <canvas id="vibrationChart" width="600" height="400"></canvas>
+  <h2>Vibration Sensor Dashboard (Last 24 Hours)</h2>
+  <canvas id="vibrationChart"></canvas>
 
   <script>
     // Firebase config
@@ -22,37 +27,82 @@
     const database = firebase.database();
 
     const ctx = document.getElementById('vibrationChart').getContext('2d');
-    const data = {
-      labels: [],
-      datasets: [{
-        label: 'Vibration',
-        data: [],
-        borderColor: 'rgb(75, 192, 192)',
-        fill: false,
-        tension: 0.1
-      }]
-    };
-    const config = {
-      type: 'line',
-      data: data,
-      options: { animation: false, scales: { y: { min: 0, max: 1 } } }
-    };
-    const myChart = new Chart(ctx, config);
 
-    // Listen for Firebase updates
-    const vibrationRef = database.ref('vibration');
-    vibrationRef.on('child_added', (snapshot) => {
-      const val = snapshot.val();
-      const time = new Date(val.timestamp).toLocaleTimeString();
-      data.labels.push(time);
-      data.datasets[0].data.push(val.value);
+  const data = {
+    datasets: [{
+      label: 'Vibration',
+      data: [],
+      borderColor: 'rgb(75,192,192)',
+      backgroundColor: 'rgba(75,192,192,0.2)',
+      pointRadius: 2,
+      fill: false,
+      tension: 0.1
+    }]
+  };
 
-      if(data.labels.length > 20){
-        data.labels.shift();
-        data.datasets[0].data.shift();
+  const config = {
+    type: 'line',
+    data: data,
+    options: {
+      animation: false,
+      parsing: false,
+      normalized: true,
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            unit: 'hour',
+            tooltipFormat: 'HH:mm:ss',
+            displayFormats: { hour: 'HH:mm' }
+          },
+          adapters: {
+            date: {
+              zone: 'Asia/Kolkata'
+            }
+          },
+          title: { display: true, text: 'Time (IST)' }
+        },
+        y: {
+          min: 0,
+          max: 1,
+          title: { display: true, text: 'Vibration (0/1)' }
+        }
+      },
+      plugins: {
+        legend: { display: true }
       }
+    }
+  };
+
+  const myChart = new Chart(ctx, config);
+
+  async function fetchVibrationData() {
+    try {
+      const response = await fetch(firebaseDatabaseURL);
+      const jsonData = await response.json();
+
+      const points = [];
+
+      const now = Date.now();
+      const dayAgo = now - 24 * 60 * 60 * 1000; // 24 hours
+
+      for (let key in jsonData) {
+        const item = jsonData[key];
+        if(item.timestamp >= dayAgo) { // only last 24 hrs
+          points.push({ x: new Date(item.timestamp), y: item.value });
+        }
+      }
+
+      // Sort by timestamp
+      points.sort((a,b) => a.x - b.x);
+
+      data.datasets[0].data = points;
       myChart.update();
-    });
+
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    }
+  }
   </script>
 </body>
 </html>
