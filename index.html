@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vibration Sensor Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <h2>Vibration Sensor Real-time Chart</h2>
+  <canvas id="vibrationChart" width="600" height="400"></canvas>
+
+  <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+      authDomain: "vibrationstatus.firebaseapp.com",
+      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "vibrationstatus",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const data = {
+      labels: [],
+      datasets: [{
+        label: 'Vibration',
+        data: [],
+        borderColor: 'rgb(75, 192, 192)',
+        fill: false,
+        tension: 0.1
+      }]
+    };
+    const config = {
+      type: 'line',
+      data: data,
+      options: { animation: false, scales: { y: { min: 0, max: 1 } } }
+    };
+    const myChart = new Chart(ctx, config);
+
+    // Listen for Firebase updates
+    const vibrationRef = database.ref('vibration');
+    vibrationRef.on('child_added', (snapshot) => {
+      const val = snapshot.val();
+      const time = new Date(val.timestamp).toLocaleTimeString();
+      data.labels.push(time);
+      data.datasets[0].data.push(val.value);
+
+      if(data.labels.length > 20){
+        data.labels.shift();
+        data.datasets[0].data.shift();
+      }
+      myChart.update();
+    });
+  </script>
+</body>
+</html>
