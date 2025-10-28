@@ -1,17 +1,51 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Firebase Test</title>
+  <title>Vibration Sensor Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    #status {
+      margin: 10px 0 20px;
+      color: #666;
+      font-size: 15px;
+    }
+    canvas {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      max-width: 95%;
+    }
+  </style>
 </head>
+
 <body>
-  <h2>Firebase Connection Test</h2>
-  <div id="result">Connecting...</div>
+  <h1>Vibration Sensor Live Dashboard</h1>
+  <div id="status">Connecting to Firebase...</div>
+  <canvas id="vibrationChart" width="900" height="400"></canvas>
 
   <script>
-    const firebaseConfig = {
+    // === Firebase Configuration ===
+  const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
   databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -22,18 +56,68 @@
   measurementId: "G-RYDGS81ZHW"
 };
 
-
     firebase.initializeApp(firebaseConfig);
+
     const db = firebase.database();
 
-    const ref = db.ref('vibration_history');
-    ref.once('value').then(snapshot => {
-      document.getElementById("result").innerText = "Connected! Data loaded.";
-      console.log(snapshot.val());
-    }).catch(err => {
-      document.getElementById("result").innerText = "Error: " + err.message;
-      console.error(err);
+    // === Chart.js Setup ===
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Vibration (0 = Off, 1 = On)',
+          data: [],
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderWidth: 2,
+          tension: 0.3,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        scales: {
+          x: { title: { display: true, text: 'Time' } },
+          y: {
+            title: { display: true, text: 'Vibration' },
+            min: 0,
+            max: 1,
+            ticks: { stepSize: 1 }
+          }
+        }
+      }
+    });
+
+    // === Firebase Listener ===
+    const ref = db.ref('vibration_history');  // adjust this if your path is different
+    const statusEl = document.getElementById("status");
+
+    ref.on('child_added', (snapshot) => {
+      const data = snapshot.val();
+      if (!data || typeof data.value === 'undefined') return;
+
+      const label = new Date(data.timestamp).toLocaleTimeString();
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(data.value);
+
+      // Keep only the last 50 readings
+      if (chart.data.labels.length > 50) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+
+      chart.update();
+
+      statusEl.innerText = "✅ Connected and Live Updating (" + new Date().toLocaleTimeString() + ")";
+      console.log("New data:", data);
+    }, (error) => {
+      console.error("Firebase read failed:", error);
+      statusEl.innerText = "❌ Firebase Error: " + error.message;
     });
   </script>
 </body>
 </html>
+
