@@ -2,89 +2,84 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Vibration Sensor Dashboard</title>
+  <title>Vibration Oscilloscope Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: monospace;
+      background-color: #000;
+      color: #00ff99;
       text-align: center;
       padding: 20px;
-      background: #0b0c10;
-      color: #66fcf1;
+      overflow-x: hidden;
     }
 
     h1 {
-      margin-bottom: 10px;
+      text-shadow: 0 0 15px #00ff99;
+      margin-bottom: 5px;
     }
 
     #status {
-      margin: 10px 0 20px 0;
-      font-size: 16px;
-      color: #c5c6c7;
+      color: #99ffcc;
+      margin-bottom: 10px;
+    }
+
+    #vibrationStatus {
+      font-size: 22px;
+      padding: 8px 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: inline-block;
+      transition: all 0.3s ease;
+    }
+
+    .on {
+      color: #00ff99;
+      border: 1px solid #00ff99;
+      background: rgba(0,255,136,0.15);
+      box-shadow: 0 0 20px #00ff99;
+    }
+
+    .off {
+      color: #ff6666;
+      border: 1px solid #ff6666;
+      background: rgba(255,50,50,0.1);
+      box-shadow: 0 0 20px #ff6666;
     }
 
     canvas {
-      background: black;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,255,0,0.3);
       width: 95%;
-      height: 400px;
-    }
-
-    select {
-      padding: 5px 10px;
-      border-radius: 5px;
-      border: none;
-      background: #45a29e;
-      color: white;
-      font-size: 14px;
-      margin-bottom: 15px;
-    }
-
-    #indicator {
-      margin: 15px auto;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: gray;
-      transition: background 0.3s;
+      max-width: 1100px;
+      height: 450px;
+      border: 1px solid #00ff99;
+      border-radius: 10px;
+      background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
+      box-shadow: 0 0 25px #00ff99;
     }
   </style>
 </head>
 <body>
-  <h1>Vibration Sensor Dashboard</h1>
-
+  <h1>Vibration Oscilloscope (Local Time)</h1>
   <div id="status">Connecting to Firebase...</div>
-
-  <div>
-    <label>Show Data For:</label>
-    <select id="timeRange">
-      <option value="1">Last 1 Hour</option>
-      <option value="2">Last 2 Hours</option>
-      <option value="4">Last 4 Hours</option>
-      <option value="24">Last 24 Hours</option>
-    </select>
-  </div>
-
-  <div id="indicator"></div>
+  <div id="vibrationStatus" class="off">Vibration: OFF</div>
   <canvas id="vibrationChart"></canvas>
 
   <script>
-    // ===== Firebase Configuration =====
+    // ===== Firebase Config =====
     const firebaseConfig = {
       apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
       authDomain: "vibrationstatus.firebaseapp.com",
       databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "vibrationstatus",
-      storageBucket: "vibrationstatus.firebasestorage.app",
+      storageBucket: "vibrationstatus.appspot.com",
       messagingSenderId: "1001204540193",
       appId: "1:1001204540193:web:79495c246902bee191d460",
       measurementId: "G-RYDGS81ZHW"
@@ -93,9 +88,7 @@
     const db = firebase.database();
 
     const statusEl = document.getElementById("status");
-    const timeRangeEl = document.getElementById("timeRange");
-    const indicatorEl = document.getElementById("indicator");
-    let listener = null;
+    const vibStatusEl = document.getElementById("vibrationStatus");
 
     // ===== Chart.js Setup =====
     const ctx = document.getElementById('vibrationChart').getContext('2d');
@@ -104,124 +97,82 @@
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration Status (0 = Off, 1 = On)',
+          label: 'Vibration (1 = ON, 0 = OFF)',
           data: [],
-          borderColor: '#45fc03',
-          backgroundColor: 'rgba(69, 252, 3, 0.2)',
+          borderColor: '#00ff99',
+          backgroundColor: 'rgba(0,255,136,0.1)',
           borderWidth: 2,
-          tension: 0.25,
-          pointRadius: 0,
+          tension: 0.3, // smooth line
+          pointRadius: 0
         }]
       },
       options: {
-        animation: { duration: 200 },
-        scales: {
-          x: { 
-            title: { display: true, text: 'Local Time' }, 
-            ticks: { color: '#66fcf1' },
-            grid: { color: 'rgba(255,255,255,0.1)' }
-          },
-          y: {
-            title: { display: true, text: 'Vibration' },
-            min: 0,
-            max: 1,
-            ticks: { stepSize: 1, color: '#66fcf1' },
-            grid: { color: 'rgba(255,255,255,0.1)' }
-          }
+        responsive: true,
+        animation: {
+          duration: 300, // smooth transition
+          easing: 'linear'
         },
         plugins: {
-          legend: { labels: { color: '#66fcf1' } }
-        }
-      }
-    });
-
-    function updateIndicator(value) {
-      indicatorEl.style.background = value === 1 ? "#45fc03" : "#ff3b3b";
-    }
-
-    // ===== Load data function =====
-    function loadData(hours) {
-      if (listener) listener.off();
-      const ref = db.ref("vibration");
-
-      const cutoffMs = Date.now() - hours * 60 * 60 * 1000;
-      const cutoffSeconds = Math.floor(cutoffMs / 1000);
-      statusEl.textContent = `📡 Loading last ${hours} hour(s)...`;
-
-      ref.once("value", snap => {
-        chart.data.labels = [];
-        chart.data.datasets[0].data = [];
-
-        const data = snap.val();
-        if (!data) {
-          statusEl.textContent = `⚠️ No data found in last ${hours} hour(s)`;
-          return;
-        }
-
-        const events = Object.values(data)
-          .filter(ev => ev.timestamp)
-          .map(ev => {
-            let ts = Number(ev.timestamp);
-            if (ts < 1e12) ts *= 1000; // Convert seconds → ms if needed
-            return { ...ev, timestamp: ts };
-          })
-          .filter(ev => ev.timestamp >= cutoffMs);
-
-        if (events.length === 0) {
-          statusEl.textContent = `⚠️ No data found in last ${hours} hour(s)`;
-          return;
-        }
-
-        events.sort((a, b) => a.timestamp - b.timestamp);
-
-        events.forEach(ev => {
-          const vibration = Number(ev.value ?? 0);
-          const localTime = new Date(ev.timestamp).toLocaleTimeString();
-          chart.data.labels.push(localTime);
-          chart.data.datasets[0].data.push(vibration);
-        });
-
-        chart.update();
-        statusEl.textContent = `✅ Showing last ${hours} hour(s)`;
-
-        // Live updates
-        listener = ref.on("child_added", snap => {
-          const ev = snap.val();
-          if (!ev || !ev.timestamp) return;
-
-          let ts = Number(ev.timestamp);
-          if (ts < 1e12) ts *= 1000;
-          if (ts >= cutoffMs) {
-            const vibration = Number(ev.value ?? 0);
-            const localTime = new Date(ts).toLocaleTimeString();
-            chart.data.labels.push(localTime);
-            chart.data.datasets[0].data.push(vibration);
-            updateIndicator(vibration);
-
-            if (chart.data.labels.length > 300) {
-              chart.data.labels.shift();
-              chart.data.datasets[0].data.shift();
-            }
-
-            chart.update("active");
+          legend: {
+            labels: { color: '#00ff99' }
           }
-        });
-      });
-    }
-
-    // ===== Initialize =====
-    firebase.database().ref(".info/connected").on("value", snap => {
-      if (snap.val() === true) {
-        statusEl.textContent = "✅ Connected to Firebase";
-        loadData(1);
-      } else {
-        statusEl.textContent = "⚠️ Disconnected";
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Local Time', color: '#00ff99' },
+            ticks: { color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
+          },
+          y: {
+            title: { display: true, text: 'Vibration', color: '#00ff99' },
+            min: 0,
+            max: 1,
+            ticks: { stepSize: 1, color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
+          }
+        }
       }
     });
 
-    // ===== Dropdown change =====
-    timeRangeEl.addEventListener("change", e => {
-      loadData(Number(e.target.value));
+    function updateVibrationIndicator(value) {
+      if (value === 1) {
+        vibStatusEl.textContent = "Vibration: ON";
+        vibStatusEl.classList.remove("off");
+        vibStatusEl.classList.add("on");
+      } else {
+        vibStatusEl.textContent = "Vibration: OFF";
+        vibStatusEl.classList.remove("on");
+        vibStatusEl.classList.add("off");
+      }
+    }
+
+    // Connection status
+    firebase.database().ref(".info/connected").on("value", snap => {
+      statusEl.textContent = snap.val()
+        ? "✅ Connected to Firebase"
+        : "⚠️ Disconnected";
+    });
+
+    const ref = db.ref("vibration");
+
+    // ===== Real-time updates (smooth animation) =====
+    ref.on("child_added", snap => {
+      const data = snap.val();
+      if (!data) return;
+
+      const vibration = Number(data.value ?? data.vibration ?? 0);
+      const localTime = new Date().toLocaleTimeString(); // system local time
+
+      chart.data.labels.push(localTime);
+      chart.data.datasets[0].data.push(vibration);
+
+      if (chart.data.labels.length > 60) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+
+      updateVibrationIndicator(vibration);
+      chart.update('active'); // smooth chart update
     });
   </script>
 </body>
