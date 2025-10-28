@@ -1,77 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Vibration Sensor Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <style>
-    body { font-family: Arial; text-align: center; background: #f4f6f8; margin: 0; padding: 20px; }
-    canvas { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    canvas {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      max-width: 90%;
+      margin: auto;
+    }
+    #status {
+      margin-top: 10px;
+      color: #666;
+      font-size: 14px;
+    }
   </style>
 </head>
+
 <body>
-  <h2>Vibration Sensor Live Chart</h2>
-  <canvas id="vibrationChart" width="800" height="400"></canvas>
+  <h1>Vibration Sensor Live Dashboard</h1>
+  <canvas id="vibrationChart" width="900" height="400"></canvas>
+  <div id="status">Connecting to Firebase...</div>
 
   <script>
     // === Firebase Configuration ===
     const firebaseConfig = {
       databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
+
+    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // === Chart.js Setup ===
     const ctx = document.getElementById('vibrationChart').getContext('2d');
-    const chart = new Chart(ctx, {
+    const vibrationChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration Value (0 = No, 1 = Yes)',
+          label: 'Vibration Value (0 or 1)',
           data: [],
           borderColor: 'rgb(75, 192, 192)',
           backgroundColor: 'rgba(75, 192, 192, 0.2)',
           borderWidth: 2,
-          tension: 0.3
+          tension: 0.3,
+          pointRadius: 3
         }]
       },
       options: {
         responsive: true,
+        animation: false,
         scales: {
-          x: { title: { display: true, text: 'Time' } },
-          y: { min: 0, max: 1, ticks: { stepSize: 1 } }
+          x: {
+            title: { display: true, text: 'Time' },
+          },
+          y: {
+            min: 0,
+            max: 1,
+            ticks: { stepSize: 1 },
+            title: { display: true, text: 'Vibration' }
+          }
         }
       }
     });
 
-    // === Listen for Realtime Updates ===
+    // === Firebase Listener ===
     const ref = db.ref('vibration_history');
 
     ref.on('child_added', (snapshot) => {
       const data = snapshot.val();
-      console.log('New data from Firebase:', data); // <-- watch the console
-
       if (!data || typeof data.value === 'undefined') return;
 
-      // Convert timestamp (ms) to readable time
       const label = new Date(data.timestamp).toLocaleTimeString();
+      vibrationChart.data.labels.push(label);
+      vibrationChart.data.datasets[0].data.push(data.value);
 
-      chart.data.labels.push(label);
-      chart.data.datasets[0].data.push(data.value);
-
-      if (chart.data.labels.length > 50) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
+      if (vibrationChart.data.labels.length > 50) {
+        vibrationChart.data.labels.shift();
+        vibrationChart.data.datasets[0].data.shift();
       }
 
-      chart.update();
+      vibrationChart.update();
+      document.getElementById("status").innerText = "Last updated: " + new Date().toLocaleTimeString();
+      console.log("New data:", data);
     }, (error) => {
       console.error("Firebase read failed:", error);
+      document.getElementById("status").innerText = "Error: " + error.message;
     });
   </script>
 </body>
 </html>
-
