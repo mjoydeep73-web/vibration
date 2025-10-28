@@ -2,79 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Vibration Oscilloscope Dashboard</title>
+  <title>Vibration Graph - Local Time</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <style>
     body {
-      font-family: 'Consolas', monospace;
-      background-color: #000;
-      color: #00ff88;
+      font-family: monospace;
+      background: #000;
+      color: #00ff99;
       text-align: center;
       padding: 20px;
     }
     h1 {
-      color: #00ff88;
-      text-shadow: 0 0 10px #00ff88;
-      margin-bottom: 5px;
+      color: #00ff99;
+      text-shadow: 0 0 10px #00ff99;
     }
     #status {
       color: #aaffcc;
-      margin-bottom: 10px;
+      margin: 10px 0;
     }
     #vibrationStatus {
       display: inline-block;
-      font-size: 22px;
-      font-weight: bold;
-      margin: 10px 0 25px;
-      padding: 10px 30px;
+      font-size: 20px;
+      padding: 8px 20px;
       border-radius: 10px;
-      text-shadow: 0 0 8px #00ff88;
-      transition: all 0.3s ease-in-out;
+      margin-bottom: 20px;
+      text-shadow: 0 0 8px #00ff99;
+      transition: all 0.3s;
     }
     .on {
-      background-color: rgba(0,255,100,0.15);
-      color: #00ff88;
-      border: 1px solid #00ff88;
-      box-shadow: 0 0 20px #00ff88;
+      color: #00ff99;
+      background: rgba(0,255,136,0.15);
+      border: 1px solid #00ff99;
+      box-shadow: 0 0 20px #00ff99;
     }
     .off {
-      background-color: rgba(255,50,50,0.1);
-      color: #ff5555;
-      border: 1px solid #ff5555;
-      box-shadow: 0 0 20px #ff5555;
+      color: #ff6666;
+      background: rgba(255,50,50,0.1);
+      border: 1px solid #ff6666;
+      box-shadow: 0 0 20px #ff6666;
     }
     canvas {
       width: 95%;
       max-width: 1100px;
       height: 450px;
-      border: 1px solid #00ff88;
+      border: 1px solid #00ff99;
       border-radius: 10px;
-      box-shadow: 0 0 25px #00ff88;
+      box-shadow: 0 0 20px #00ff99;
       background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
-      transition: box-shadow 0.2s ease-in-out;
-    }
-    .pulse {
-      box-shadow: 0 0 40px #00ff88, 0 0 80px #00ff88;
-      transition: box-shadow 0.1s ease-in-out;
     }
   </style>
 </head>
 <body>
-  <h1>Vibration Oscilloscope Dashboard</h1>
+  <h1>Vibration Dashboard (Local Time)</h1>
   <div id="status">Connecting to Firebase...</div>
   <div id="vibrationStatus" class="off">Vibration: OFF</div>
   <canvas id="vibrationChart"></canvas>
 
   <script>
-    // ===== Firebase Configuration =====
+    // ==== Firebase Config ====
     const firebaseConfig = {
       apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
       authDomain: "vibrationstatus.firebaseapp.com",
@@ -85,37 +78,14 @@
       appId: "1:1001204540193:web:79495c246902bee191d460",
       measurementId: "G-RYDGS81ZHW"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const statusEl = document.getElementById("status");
-    const vibStatusEl = document.getElementById("vibrationStatus");
-    const canvas = document.getElementById('vibrationChart');
-    const ctx = canvas.getContext('2d');
 
-    // ===== Get user's system timezone =====
-    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const statusEl = document.getElementById('status');
+    const vibStatusEl = document.getElementById('vibrationStatus');
 
-    function normalizeTimestamp(raw) {
-      if (raw instanceof Date) return raw.getTime();
-      const n = Number(raw);
-      if (!isNaN(n)) return n < 1e12 ? n * 1000 : n;
-      const parsed = Date.parse(raw);
-      return isNaN(parsed) ? NaN : parsed;
-    }
-
-    // ✅ Show only local time (no date)
-    function formatLocalTime(timestampMs) {
-      if (isNaN(timestampMs)) return "Invalid";
-      return new Date(timestampMs).toLocaleTimeString('en-IN', {
-        timeZone: userTimeZone,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
-    }
-
+    // ==== Chart Setup ====
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -123,59 +93,35 @@
         datasets: [{
           label: 'Vibration (1 = ON, 0 = OFF)',
           data: [],
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.25,
-          borderColor: '#00ff88',
+          borderColor: '#00ff99',
           backgroundColor: 'rgba(0,255,136,0.1)',
+          borderWidth: 2,
+          tension: 0.25,
+          pointRadius: 0
         }]
       },
       options: {
-        responsive: true,
         animation: false,
         plugins: {
-          legend: {
-            labels: {
-              color: '#00ff88'
-            }
-          }
+          legend: { labels: { color: '#00ff99' } }
         },
         scales: {
           x: {
-            title: {
-              display: true,
-              text: `Local Time (${userTimeZone})`,
-              color: '#00ff88'
-            },
-            ticks: {
-              color: '#66ffaa'
-            },
-            grid: {
-              color: 'rgba(0,255,136,0.1)'
-            }
+            title: { display: true, text: 'Local Time', color: '#00ff99' },
+            ticks: { color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
           },
           y: {
-            title: {
-              display: true,
-              text: 'Vibration',
-              color: '#00ff88'
-            },
-            min: 0,
-            max: 1,
-            ticks: {
-              stepSize: 1,
-              color: '#66ffaa'
-            },
-            grid: {
-              color: 'rgba(0,255,136,0.1)'
-            }
+            title: { display: true, text: 'Vibration', color: '#00ff99' },
+            min: 0, max: 1, ticks: { stepSize: 1, color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
           }
         }
       }
     });
 
-    function updateVibrationIndicator(v) {
-      if (v === 1) {
+    function updateVibrationIndicator(value) {
+      if (value === 1) {
         vibStatusEl.textContent = "Vibration: ON";
         vibStatusEl.classList.remove("off");
         vibStatusEl.classList.add("on");
@@ -187,45 +133,29 @@
     }
 
     firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.textContent = snap.val()
-        ? `✅ Connected — Timezone: ${userTimeZone}`
-        : "⚠️ Disconnected from Firebase";
+      statusEl.textContent = snap.val() ? "✅ Connected to Firebase" : "⚠️ Disconnected";
     });
 
-    const ref = db.ref('vibration');
-    ref.once('value').then(snapshot => {
-      const data = snapshot.val();
-      if (data) {
-        Object.values(data).forEach(event => {
-          const t = normalizeTimestamp(event.timestamp || event.time);
-          const v = Number(event.value ?? event.vibration ?? 0);
-          if (!isNaN(t)) {
-            chart.data.labels.push(formatLocalTime(t));
-            chart.data.datasets[0].data.push(v);
-          }
-        });
-        chart.update();
-      }
-    });
+    const ref = db.ref("vibration");
 
-    ref.on('child_added', snap => {
-      const e = snap.val();
-      if (!e) return;
-      const t = normalizeTimestamp(e.timestamp || e.time);
-      const v = Number(e.value ?? e.vibration ?? 0);
-      if (isNaN(t)) return;
-      const label = formatLocalTime(t);
-      chart.data.labels.push(label);
-      chart.data.datasets[0].data.push(v);
+    ref.on("child_added", snap => {
+      const data = snap.val();
+      if (!data) return;
+
+      const vibration = Number(data.value ?? data.vibration ?? 0);
+
+      // ✅ Always use system local time
+      const localTime = new Date().toLocaleTimeString();
+
+      chart.data.labels.push(localTime);
+      chart.data.datasets[0].data.push(vibration);
+
       if (chart.data.labels.length > 60) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
       }
-      updateVibrationIndicator(v);
-      if (v === 1) {
-        canvas.classList.add("pulse");
-        setTimeout(() => canvas.classList.remove("pulse"), 150);
-      }
+
+      updateVibrationIndicator(vibration);
       chart.update();
     });
   </script>
