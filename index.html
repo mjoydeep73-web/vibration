@@ -7,20 +7,79 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { background: #111; color: #eee; font-family: sans-serif; text-align: center; }
-    #status { font-size: 1.2em; margin: 10px; }
-    canvas { width: 90%; max-width: 800px; background: #222; border-radius: 10px; padding: 10px; }
-    #lastTime { color: #0f0; margin-top: 10px; font-size: 1.1em; }
+    body {
+      background: #0d1117;
+      color: #eee;
+      font-family: "Segoe UI", sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    h2 {
+      color: #00ffc3;
+    }
+    #controls button {
+      background: #1e232a;
+      border: 1px solid #00ffc3;
+      color: #00ffc3;
+      border-radius: 8px;
+      padding: 6px 12px;
+      margin: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+    #controls button.active {
+      background: #00ffc3;
+      color: #0d1117;
+    }
+    #status {
+      font-size: 1.2em;
+      margin-top: 10px;
+    }
+    #lastTime {
+      color: #8f8;
+      margin-bottom: 10px;
+    }
+    canvas {
+      width: 95%;
+      max-width: 900px;
+      background: #1a1f26;
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    #download {
+      margin-top: 15px;
+      background: #00ffc3;
+      color: #0d1117;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+    #download:hover {
+      background: #05ffdb;
+    }
   </style>
 </head>
 <body>
-  <h2>Vibration Live Monitor</h2>
+  <h2>🛰️ Vibration Live Monitor</h2>
   <div id="status">Connecting...</div>
   <div id="lastTime">Last update: --</div>
-  <canvas id="chart" height="300"></canvas>
+  <div id="controls">
+    <button onclick="setRange(1)">1h</button>
+    <button onclick="setRange(6)">6h</button>
+    <button onclick="setRange(12)">12h</button>
+    <button onclick="setRange(24)">24h</button>
+    <button onclick="setRange(0)">All</button>
+  </div>
+  <canvas id="chart" height="350"></canvas>
+  <button id="download" onclick="downloadCSV()">📥 Download CSV</button>
 
   <script>
-    // ======= Your Firebase Config =======
+    // ========= Firebase Configuration =========
     const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
@@ -36,21 +95,18 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // === Change to your user path ===
+    // ===== User Path =====
     const userPath = "/users/IqaIng1hKVzityL1fJqWvXFLv73/vibration";
 
-    const statusEl = document.getElementById('status');
-    const lastTimeEl = document.getElementById('lastTime');
-
-    // ======= Chart.js Setup =======
+    // ===== Chart Setup =====
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration',
-          borderColor: '#00ffcc',
+          label: 'Vibration (0–1023)',
+          borderColor: '#00ffc3',
           backgroundColor: 'rgba(0,255,200,0.2)',
           data: [],
           tension: 0.3,
@@ -59,33 +115,78 @@
       options: {
         animation: false,
         scales: {
-          x: { title: { display: true, text: 'Local Time' } },
+          x: { title: { display: true, text: 'Time' } },
           y: { title: { display: true, text: 'Vibration' }, min: 0, max: 1023 }
         }
       }
     });
 
-    // ======= Real-time Updates =======
-    db.ref(userPath).limitToLast(100).on('child_added', snapshot => {
-      const data = snapshot.val();
-      if (!data) return;
+    const statusEl = document.getElementById("status");
+    const lastTimeEl = document.getElementById("lastTime");
+    const buttons = document.querySelectorAll("#controls button");
 
-      const timeLabel = data.local_time || new Date().toLocaleTimeString();
+    let selectedHours = 1;
+    let allData = [];
 
-      chart.data.labels.push(timeLabel);
-      chart.data.datasets[0].data.push(data.vibration);
-      if (chart.data.labels.length > 100) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
-      }
-      chart.update('none');
+    function setRange(hours) {
+      selectedHours = hours;
+      buttons.forEach(b => b.classList.remove("active"));
+      event.target.classList.add("active");
+      updateChart();
+    }
 
-      // ON/OFF indicator + last time
-      statusEl.innerHTML = data.vibration > 500
-        ? "🟢 Vibration Detected"
-        : "🔴 Stable";
-      lastTimeEl.innerHTML = `Last update: ${timeLabel}`;
+    // ===== Realtime Firebase Listener =====
+    db.ref(userPath).limitToLast(1000).on("child_added", snap => {
+      const d = snap.val();
+      if (!d) return;
+      allData.push({
+        time: d.local_time || new Date().toLocaleTimeString(),
+        ts: d.timestamp || Date.now() / 1000,
+        vib: d.vibration || 0
+      });
+      if (allData.length > 1000) allData.shift();
+      updateChart();
+      statusEl.innerHTML = d.vibration > 500 ? "🟢 Vibration Detected" : "🔴 Stable";
+      lastTimeEl.innerHTML = "Last update: " + (d.local_time || "--");
     });
+
+    // ===== Chart Update =====
+    function updateChart() {
+      const now = Date.now() / 1000;
+      const filtered = selectedHours === 0
+        ? allData
+        : allData.filter(p => (now - p.ts) < selectedHours * 3600);
+
+      chart.data.labels = filtered.map(p => p.time);
+      chart.data.datasets[0].data = filtered.map(p => p.vib);
+      chart.update('none');
+    }
+
+    // ===== CSV Download =====
+    function downloadCSV() {
+      if (allData.length === 0) {
+        alert("No data available to export!");
+        return;
+      }
+
+      let csv = "Local Time,Timestamp,Vibration\n";
+      allData.forEach(row => {
+        csv += `${row.time},${row.ts},${row.vib}\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "vibration_data.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Default button active
+    buttons[0].classList.add("active");
   </script>
 </body>
 </html>
