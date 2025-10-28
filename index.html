@@ -7,94 +7,71 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #f4f6f8;
-      margin: 0;
-      padding: 20px;
-    }
-    h2 {
-      color: #333;
-    }
-    canvas {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+    body { font-family: Arial; text-align: center; background: #f4f6f8; margin: 0; padding: 20px; }
+    canvas { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-
-  <h2>Vibration Sensor Live Data</h2>
+  <h2>Vibration Sensor Live Chart</h2>
   <canvas id="vibrationChart" width="800" height="400"></canvas>
 
   <script>
     // === Firebase Configuration ===
     const firebaseConfig = {
-      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E", // optional, if you have one
-      authDomain: "vibrationstatus.firebaseapp.com",
-      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "vibrationstatus",
-      storageBucket: "vibrationstatus.firebasestorage.app",
-      messagingSenderId: "1001204540193",
-      appId: "1:1001204540193:web:79495c246902bee191d460"
+      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // === Chart.js Setup ===
     const ctx = document.getElementById('vibrationChart').getContext('2d');
-    const vibrationChart = new Chart(ctx, {
+    const chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration Value (0 or 1)',
+          label: 'Vibration Value (0 = No, 1 = Yes)',
           data: [],
           borderColor: 'rgb(75, 192, 192)',
           backgroundColor: 'rgba(75, 192, 192, 0.2)',
           borderWidth: 2,
-          tension: 0.1,
-          fill: true
+          tension: 0.3
         }]
       },
       options: {
+        responsive: true,
         scales: {
-          x: {
-            title: { display: true, text: 'Time' }
-          },
-          y: {
-            title: { display: true, text: 'Vibration' },
-            min: 0,
-            max: 1,
-            ticks: { stepSize: 1 }
-          }
+          x: { title: { display: true, text: 'Time' } },
+          y: { min: 0, max: 1, ticks: { stepSize: 1 } }
         }
       }
     });
 
-    // === Fetch and Listen for Realtime Updates ===
+    // === Listen for Realtime Updates ===
     const ref = db.ref('vibration_history');
+
     ref.on('child_added', (snapshot) => {
       const data = snapshot.val();
-      const timestamp = new Date(data.timestamp * 1).toLocaleTimeString(); // convert ms -> readable
-      const value = data.value;
+      console.log('New data from Firebase:', data); // <-- watch the console
 
-      // Add data point
-      vibrationChart.data.labels.push(timestamp);
-      vibrationChart.data.datasets[0].data.push(value);
+      if (!data || typeof data.value === 'undefined') return;
 
-      // Keep chart manageable (show last 50 points)
-      if (vibrationChart.data.labels.length > 50) {
-        vibrationChart.data.labels.shift();
-        vibrationChart.data.datasets[0].data.shift();
+      // Convert timestamp (ms) to readable time
+      const label = new Date(data.timestamp).toLocaleTimeString();
+
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(data.value);
+
+      if (chart.data.labels.length > 50) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
       }
 
-      vibrationChart.update();
+      chart.update();
+    }, (error) => {
+      console.error("Firebase read failed:", error);
     });
   </script>
-
 </body>
 </html>
+
