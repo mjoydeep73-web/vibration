@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Realtime Vibration Monitor</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Realtime Vibration Graph (Last 30 Minutes)</title>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js"></script>
@@ -16,8 +16,8 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #0c0c0c;
-      color: white;
+      background: #0b0b0b;
+      color: #fff;
       text-align: center;
       margin: 20px;
     }
@@ -27,51 +27,53 @@
       padding: 20px;
       display: inline-block;
       margin-bottom: 20px;
-      box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+      box-shadow: 0 0 12px rgba(0, 255, 0, 0.08);
     }
     input {
       padding: 10px;
       border: none;
-      border-radius: 5px;
-      margin: 5px;
-      width: 200px;
+      border-radius: 6px;
+      margin: 6px;
+      width: 220px;
     }
     button {
       background: lime;
-      color: black;
-      font-weight: bold;
+      color: #000;
+      font-weight: 700;
       border: none;
-      padding: 10px 20px;
+      padding: 10px 18px;
       border-radius: 6px;
       cursor: pointer;
     }
     canvas {
-      background: black;
+      background: #000;
       border-radius: 12px;
       margin-top: 20px;
       width: 90%;
-      max-width: 800px;
+      max-width: 900px;
     }
     #logoutBtn {
-      background: red;
-      color: white;
-      margin-top: 10px;
+      background: #d33;
+      color: #fff;
       display: none;
+      margin-top: 10px;
+    }
+    #status {
+      margin-top: 10px;
+      color: #9f9;
     }
   </style>
 </head>
 <body>
-  <h2>Realtime Vibration Graph</h2>
+  <h2>Realtime Vibration Graph (Last 30 Minutes)</h2>
 
-  <!-- Login Card -->
   <div id="loginCard" class="card">
-    <h3>Sign In</h3>
-    <input type="email" id="email" placeholder="Email" /><br />
-    <input type="password" id="password" placeholder="Password" /><br />
+    <h3>Sign in</h3>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" /><br />
     <button id="loginBtn">Login</button>
   </div>
 
-  <!-- Dashboard -->
   <div id="dashboard" style="display:none;">
     <div id="userInfo"></div>
     <button id="logoutBtn">Logout</button>
@@ -81,19 +83,10 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-    import {
-      getAuth,
-      signInWithEmailAndPassword,
-      onAuthStateChanged,
-      signOut,
-    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-    import {
-      getDatabase,
-      ref,
-      onChildAdded,
-    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+    import { getDatabase, ref, onChildAdded } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
 
-    // 🔧 Your Firebase Config
+    // ===== REPLACE with your Firebase config =====
     const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
@@ -103,94 +96,120 @@
   messagingSenderId: "1001204540193",
   appId: "1:1001204540193:web:79495c246902bee191d460",
   measurementId: "G-RYDGS81ZHW"
-};
+}
+    // =============================================
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
+    const loginCard = document.getElementById("loginCard");
+    const dashboard = document.getElementById("dashboard");
     const emailInput = document.getElementById("email");
     const passwordInput = document.getElementById("password");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-    const loginCard = document.getElementById("loginCard");
-    const dashboard = document.getElementById("dashboard");
-    const status = document.getElementById("status");
     const userInfo = document.getElementById("userInfo");
-    const ctx = document.getElementById("vibrationChart").getContext("2d");
+    const statusEl = document.getElementById("status");
 
     // Chart setup
-    const data = {
-      labels: [],
-      datasets: [
-        {
-          label: "Vibration",
-          borderColor: "lime",
-          borderWidth: 2,
-          data: [],
-          fill: false,
-          tension: 0.2,
-        },
-      ],
-    };
+    const ctx = document.getElementById("vibrationChart").getContext("2d");
+    const chartData = { labels: [], datasets: [{ label: "Vibration (1=ON, 0=OFF)", borderColor: "lime", backgroundColor: "rgba(0,255,0,0.08)", data: [], tension: 0.25, pointRadius: 0 }] };
 
     const chart = new Chart(ctx, {
       type: "line",
-      data,
+      data: chartData,
       options: {
         animation: false,
         scales: {
-          x: { title: { display: true, text: "Time" } },
-          y: { title: { display: true, text: "Vibration" } },
-        },
-      },
-    });
-
-    // 🔑 LOGIN
-    loginBtn.addEventListener("click", async () => {
-      const email = emailInput.value.trim();
-      const password = passwordInput.value.trim();
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-        status.innerText = "Authenticating...";
-      } catch (error) {
-        alert("Login failed: " + error.message);
+          x: { title: { display: true, text: "Local Time (HH:MM:SS)" }, ticks: { color: "#ccc", autoSkip: true, maxTicksLimit: 10 } },
+          y: { title: { display: true, text: "Vibration" }, min: 0, max: 1, ticks: { stepSize: 1, color: "#ccc" } }
+        }
       }
     });
 
-    // 🔓 LOGOUT
-    logoutBtn.addEventListener("click", () => {
-      signOut(auth);
+    // India timezone formatter
+    const timeFormatter = new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
     });
 
-    // 👤 AUTH STATE CHANGE
-    onAuthStateChanged(auth, (user) => {
+    // Convert DB timestamps or local_time → Date object
+    function parseTime(val) {
+      if (!val) return new Date();
+      if (typeof val === "number") {
+        if (val < 1e12) val *= 1000;
+        return new Date(val);
+      }
+      // Try parsing local_time (string)
+      const parsed = Date.parse(val);
+      if (!isNaN(parsed)) return new Date(parsed);
+      return new Date();
+    }
+
+    function formatTimeLabel(date) {
+      return timeFormatter.format(date);
+    }
+
+    // Login
+    loginBtn.addEventListener("click", async () => {
+      const email = emailInput.value.trim();
+      const pw = passwordInput.value.trim();
+      if (!email || !pw) return alert("Enter email & password");
+      try {
+        statusEl.textContent = "Signing in...";
+        await signInWithEmailAndPassword(auth, email, pw);
+      } catch (err) {
+        alert("Login failed: " + err.message);
+      }
+    });
+
+    logoutBtn.addEventListener("click", async () => await signOut(auth));
+
+    onAuthStateChanged(auth, user => {
       if (user) {
         loginCard.style.display = "none";
         dashboard.style.display = "block";
         logoutBtn.style.display = "inline-block";
-        userInfo.innerText = "👤 " + user.email;
-        status.innerText = "Connected ✅";
+        userInfo.textContent = `Signed in: ${user.email}`;
+        statusEl.textContent = "Connected ✅";
 
-        const userPath = "/users/" + user.uid + "/vibration";
-        const vibRef = ref(db, userPath);
+        const vibRef = ref(db, `/users/${user.uid}/vibration`);
+        chartData.labels.length = 0;
+        chartData.datasets[0].data.length = 0;
+        chart.update();
 
-        // Live updates
-        onChildAdded(vibRef, (snapshot) => {
+        onChildAdded(vibRef, snapshot => {
           const val = snapshot.val();
-          const timeLabel = val.timestamp
-            ? new Date(val.timestamp).toLocaleTimeString()
-            : new Date().toLocaleTimeString();
+          if (!val) return;
 
-          data.labels.push(timeLabel);
-          data.datasets[0].data.push(val.vibration || 0);
+          // Parse time
+          const date = parseTime(val.timestamp || val.local_time);
+          const now = new Date();
+          const diffMinutes = (now - date) / 60000;
+          if (diffMinutes > 30) return; // skip entries older than 30 min
 
-          if (data.labels.length > 60) {
-            data.labels.shift();
-            data.datasets[0].data.shift();
+          const label = formatTimeLabel(date);
+          const vibration = val.vibration ?? val.value ?? 0;
+
+          chartData.labels.push(label);
+          chartData.datasets[0].data.push(vibration);
+
+          // Keep only last 30 minutes in chart
+          const cutoff = new Date(now - 30 * 60 * 1000);
+          while (chartData.labels.length > 0) {
+            const oldestLabel = chartData.labels[0];
+            const oldestTime = parseTime(oldestLabel);
+            if (oldestTime < cutoff) {
+              chartData.labels.shift();
+              chartData.datasets[0].data.shift();
+            } else break;
           }
 
-          chart.update();
+          chart.update("none");
         });
       } else {
         loginCard.style.display = "block";
