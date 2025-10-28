@@ -1,58 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Vibration Level Dashboard</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <meta charset="utf-8">
+  <title>Vibration Sensor Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
     body {
-      font-family: "Segoe UI", sans-serif;
+      font-family: Arial, sans-serif;
       text-align: center;
-      background: #f4f7fa;
+      background: #f4f6f8;
       margin: 0;
-      padding: 0;
+      padding: 20px;
     }
-    h1 {
+    h2 {
       color: #333;
-      padding-top: 20px;
-    }
-    .card {
-      display: inline-block;
-      background: #fff;
-      padding: 20px 30px;
-      margin-top: 30px;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    #vibrationValue {
-      font-size: 45px;
-      color: #007bff;
-      margin-top: 10px;
     }
     canvas {
-      margin-top: 40px;
-      width: 90%;
-      max-width: 800px;
-      height: 400px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
-  <h1>🔸 Vibration Level Dashboard 🔸</h1>
 
-  <div class="card">
-    <p><b>Current Vibration Level:</b></p>
-    <div id="vibrationValue">Loading...</div>
-  </div>
-
-  <canvas id="vibrationChart"></canvas>
+  <h2>Vibration Sensor Live Data</h2>
+  <canvas id="vibrationChart" width="800" height="400"></canvas>
 
   <script>
-    // 🔹 Firebase Configuration
+    // === Firebase Configuration ===
     const firebaseConfig = {
-      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E", // optional, if you have one
       authDomain: "vibrationstatus.firebaseapp.com",
       databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "vibrationstatus",
@@ -61,62 +41,60 @@
       appId: "1:1001204540193:web:79495c246902bee191d460"
     };
 
-    // 🔹 Initialize Firebase
     firebase.initializeApp(firebaseConfig);
-    const dbRef = firebase.database().ref("vibration/value");
+    const db = firebase.database();
 
-    // 🔹 Chart.js Setup
+    // === Chart.js Setup ===
     const ctx = document.getElementById('vibrationChart').getContext('2d');
     const vibrationChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration Level',
+          label: 'Vibration Value (0 or 1)',
           data: [],
-          borderColor: '#007bff',
-          backgroundColor: 'rgba(0, 123, 255, 0.1)',
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
           borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.3
+          tension: 0.1,
+          fill: true
         }]
       },
       options: {
         scales: {
-          x: { 
-            title: { display: true, text: 'Time (s)' }
+          x: {
+            title: { display: true, text: 'Time' }
           },
           y: {
-            title: { display: true, text: 'Vibration Value' },
-            beginAtZero: true
+            title: { display: true, text: 'Vibration' },
+            min: 0,
+            max: 1,
+            ticks: { stepSize: 1 }
           }
-        },
-        animation: false,
-        plugins: {
-          legend: { display: true, position: 'top' }
         }
       }
     });
 
-    // 🔹 Real-time data listener
-    let timeCounter = 0;
-    dbRef.on("value", (snapshot) => {
-      const vibrationValue = snapshot.val();
-      document.getElementById("vibrationValue").innerText = vibrationValue;
+    // === Fetch and Listen for Realtime Updates ===
+    const ref = db.ref('vibration_history');
+    ref.on('child_added', (snapshot) => {
+      const data = snapshot.val();
+      const timestamp = new Date(data.timestamp * 1).toLocaleTimeString(); // convert ms -> readable
+      const value = data.value;
 
       // Add data point
-      vibrationChart.data.labels.push(timeCounter + "s");
-      vibrationChart.data.datasets[0].data.push(vibrationValue);
+      vibrationChart.data.labels.push(timestamp);
+      vibrationChart.data.datasets[0].data.push(value);
 
-      // Keep only last 20 readings
-      if (vibrationChart.data.labels.length > 20) {
+      // Keep chart manageable (show last 50 points)
+      if (vibrationChart.data.labels.length > 50) {
         vibrationChart.data.labels.shift();
         vibrationChart.data.datasets[0].data.shift();
       }
 
       vibrationChart.update();
-      timeCounter++;
     });
   </script>
+
 </body>
 </html>
