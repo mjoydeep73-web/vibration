@@ -33,7 +33,7 @@
       display: inline-block;
       font-size: 22px;
       font-weight: bold;
-      margin: 10px 0 25px;
+      margin: 10px 0 10px;
       padding: 10px 30px;
       border-radius: 10px;
       text-shadow: 0 0 8px #00ff88;
@@ -50,6 +50,11 @@
       color: #ff5555;
       border: 1px solid #ff5555;
       box-shadow: 0 0 20px #ff5555;
+    }
+    #lastUpdated {
+      font-size: 13px;
+      margin-top: 6px;
+      color: #aaffcc;
     }
     canvas {
       width: 95%;
@@ -71,33 +76,37 @@
   <h1>Vibration Oscilloscope Dashboard</h1>
   <div id="status">Connecting to Firebase...</div>
   <div id="vibrationStatus" class="off">Vibration: OFF</div>
+  <div id="lastUpdated">Last updated: --</div>
   <canvas id="vibrationChart"></canvas>
 
   <script>
     // ===== Firebase Configuration =====
     const firebaseConfig = {
-  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  authDomain: "vibrationstatus.firebaseapp.com",
-  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "vibrationstatus",
-  storageBucket: "vibrationstatus.firebasestorage.app",
-  messagingSenderId: "1001204540193",
-  appId: "1:1001204540193:web:79495c246902bee191d460",
-  measurementId: "G-RYDGS81ZHW"
-};
+      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+      authDomain: "vibrationstatus.firebaseapp.com",
+      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "vibrationstatus",
+      storageBucket: "vibrationstatus.appspot.com",
+      messagingSenderId: "1001204540193",
+      appId: "1:1001204540193:web:79495c246902bee191d460",
+      measurementId: "G-RYDGS81ZHW"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
+    // ===== DOM Elements =====
     const statusEl = document.getElementById("status");
     const vibStatusEl = document.getElementById("vibrationStatus");
+    const lastUpdatedEl = document.getElementById("lastUpdated");
     const canvas = document.getElementById('vibrationChart');
     const ctx = canvas.getContext('2d');
 
-    // ===== Get user's system timezone =====
+    // ===== Detect user timezone =====
     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
     console.log("Detected Timezone:", userTimeZone);
 
-    // ===== Gradient for Glow =====
+    // ===== Gradient Glow =====
     function createGlowGradient(ctx, chartArea) {
       const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
       gradient.addColorStop(0, 'rgba(0,255,136,0)');
@@ -107,7 +116,7 @@
       return gradient;
     }
 
-    // ===== Chart.js Config =====
+    // ===== Chart Setup =====
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -155,8 +164,21 @@
       }
     });
 
-    // ===== Time Formatter (local or fallback to Kolkata) =====
+    // ===== Helper: Normalize Timestamps =====
+    function normalizeTimestamp(raw) {
+      if (raw instanceof Date) return raw.getTime();
+      if (raw === null || typeof raw === 'undefined') return NaN;
+      const num = Number(raw);
+      if (!isNaN(num)) {
+        if (num < 1e12) return num * 1000; // seconds → ms
+        return num; // already ms
+      }
+      const parsed = Date.parse(raw);
+      return isNaN(parsed) ? NaN : parsed;
+    }
+
     function formatTimeLocal(timestamp) {
+      if (isNaN(timestamp)) return 'Invalid Time';
       return new Date(timestamp).toLocaleString('en-IN', {
         timeZone: userTimeZone,
         day: '2-digit',
@@ -168,19 +190,10 @@
       }).replace(',', '');
     }
 
-    // ===== Firebase Reference =====
-    const ref = db.ref('vibration');
-
-    firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.innerText = snap.val()
-        ? `✅ Connected — Streaming Live (${userTimeZone})`
-        : "⚠️ Disconnected from Firebase";
-    });
-
-    // ===== Helpers =====
+    // ===== Indicator and Value Handling =====
     function toNumber(val) {
-      const num = Number(val);
-      return isNaN(num) ? 0 : num;
+      const n = Number(val);
+      return isNaN(n) ? 0 : n;
     }
 
     function updateVibrationIndicator(v) {
@@ -195,46 +208,60 @@
       }
     }
 
-    // ===== Load Initial Data =====
+    // ===== Firebase Reference =====
+    const ref = db.ref('vibration');
+
+    firebase.database().ref(".info/connected").on("value", snap => {
+      statusEl.innerText = snap.val()
+        ? `✅ Connected — Streaming Live (${userTimeZone})`
+        : "⚠️ Disconnected from Firebase";
+    });
+
+    // ===== Load Existing Data =====
     ref.once('value').then(snapshot => {
       const data = snapshot.val();
       if (data) {
         Object.values(data).forEach(event => {
-          const t = event.timestamp || event.time;
+          const t = normalizeTimestamp(event.timestamp || event.time);
           const v = toNumber(event.value ?? event.vibration);
-          if (t === undefined) return;
-          chart.data.labels.push(formatTimeLocal(t));
-          chart.data.datasets[0].data.push(v);
+          if (!isNaN(t)) {
+            chart.data.labels.push(formatTimeLocal(t));
+            chart.data.datasets[0].data.push(v);
+          }
         });
         chart.update();
       }
-      statusEl.innerText = `✅ Connected — Live Streaming (${userTimeZone})`;
+      statusEl.innerText = `✅ Connected — Live (${userTimeZone})`;
     });
 
-    // ===== Listen for New Data =====
+    // ===== Listen for New Events =====
     ref.on('child_added', snapshot => {
       const event = snapshot.val();
       if (!event) return;
 
-      const t = event.timestamp || event.time;
+      const t = normalizeTimestamp(event.timestamp || event.time);
       const v = toNumber(event.value ?? event.vibration);
 
-      chart.data.labels.push(formatTimeLocal(t));
-      chart.data.datasets[0].data.push(v);
+      if (!isNaN(t)) {
+        const label = formatTimeLocal(t);
+        chart.data.labels.push(label);
+        chart.data.datasets[0].data.push(v);
 
-      if (chart.data.labels.length > 60) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
+        if (chart.data.labels.length > 60) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+
+        updateVibrationIndicator(v);
+        lastUpdatedEl.innerText = `Last updated: ${label}`;
+
+        if (v === 1) {
+          canvas.classList.add("pulse");
+          setTimeout(() => canvas.classList.remove("pulse"), 150);
+        }
+
+        chart.update();
       }
-
-      updateVibrationIndicator(v);
-
-      if (v === 1) {
-        canvas.classList.add("pulse");
-        setTimeout(() => canvas.classList.remove("pulse"), 150);
-      }
-
-      chart.update();
     });
   </script>
 </body>
