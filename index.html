@@ -102,20 +102,18 @@
           borderColor: '#00ff99',
           backgroundColor: 'rgba(0,255,136,0.1)',
           borderWidth: 2,
-          tension: 0.3, // smooth line
+          tension: 0.25, // smooth line
           pointRadius: 0
         }]
       },
       options: {
         responsive: true,
         animation: {
-          duration: 300, // smooth transition
+          duration: 300,
           easing: 'linear'
         },
         plugins: {
-          legend: {
-            labels: { color: '#00ff99' }
-          }
+          legend: { labels: { color: '#00ff99' } }
         },
         scales: {
           x: {
@@ -134,6 +132,7 @@
       }
     });
 
+    // ===== Indicator =====
     function updateVibrationIndicator(value) {
       if (value === 1) {
         vibStatusEl.textContent = "Vibration: ON";
@@ -146,7 +145,7 @@
       }
     }
 
-    // Connection status
+    // ===== Firebase Connection Status =====
     firebase.database().ref(".info/connected").on("value", snap => {
       statusEl.textContent = snap.val()
         ? "✅ Connected to Firebase"
@@ -155,27 +154,31 @@
 
     const ref = db.ref("vibration");
 
-    // ===== Real-time updates (smooth animation) =====
+    // ===== Real-time Data =====
     ref.on("child_added", snap => {
       const data = snap.val();
       if (!data) return;
 
       const vibration = Number(data.value ?? data.vibration ?? 0);
-      const localTime = new Date().toLocaleTimeString(); // system local time
+      let ts = Number(data.timestamp);
+      if (ts && ts < 1e12) ts *= 1000; // convert seconds → ms if needed
 
-      chart.data.labels.push(localTime);
+      // if timestamp not found, use current system time
+      const timeLabel = ts
+        ? new Date(ts).toLocaleTimeString([], { hour12: true })
+        : new Date().toLocaleTimeString([], { hour12: true });
+
+      chart.data.labels.push(timeLabel);
       chart.data.datasets[0].data.push(vibration);
 
-      if (chart.data.labels.length > 60) {
+      if (chart.data.labels.length > 100) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
       }
 
       updateVibrationIndicator(vibration);
-      chart.update('active'); // smooth chart update
+      chart.update('active');
     });
   </script>
 </body>
 </html>
-
-
