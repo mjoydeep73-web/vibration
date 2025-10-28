@@ -1,114 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8">
-  <title>Vibration Sensor Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Firebase SDK -->
+  <title>Firebase Test</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
-    }
-    h1 {
-      color: #333;
-      margin-bottom: 20px;
-    }
-    canvas {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      max-width: 90%;
-      margin: auto;
-    }
-    #status {
-      margin-top: 10px;
-      color: #666;
-      font-size: 14px;
-    }
-  </style>
 </head>
-
 <body>
-  <h1>Vibration Sensor Live Dashboard</h1>
-  <canvas id="vibrationChart" width="900" height="400"></canvas>
-  <div id="status">Connecting to Firebase...</div>
+  <h2>Firebase Connection Test</h2>
+  <div id="result">Connecting...</div>
 
   <script>
-    // === Firebase Configuration ===
     const firebaseConfig = {
-      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
-    };
+  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+  authDomain: "vibrationstatus.firebaseapp.com",
+  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "vibrationstatus",
+  storageBucket: "vibrationstatus.firebasestorage.app",
+  messagingSenderId: "1001204540193",
+  appId: "1:1001204540193:web:79495c246902bee191d460",
+  measurementId: "G-RYDGS81ZHW"
+};
 
-    // Initialize Firebase
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // === Chart.js Setup ===
-    const ctx = document.getElementById('vibrationChart').getContext('2d');
-    const vibrationChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Vibration Value (0 or 1)',
-          data: [],
-          borderColor: 'rgb(75, 192, 192)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          borderWidth: 2,
-          tension: 0.3,
-          pointRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        animation: false,
-        scales: {
-          x: {
-            title: { display: true, text: 'Time' },
-          },
-          y: {
-            min: 0,
-            max: 1,
-            ticks: { stepSize: 1 },
-            title: { display: true, text: 'Vibration' }
-          }
-        }
-      }
-    });
-
-    // === Firebase Listener ===
     const ref = db.ref('vibration_history');
-
-    ref.on('child_added', (snapshot) => {
-      const data = snapshot.val();
-      if (!data || typeof data.value === 'undefined') return;
-
-      const label = new Date(data.timestamp).toLocaleTimeString();
-      vibrationChart.data.labels.push(label);
-      vibrationChart.data.datasets[0].data.push(data.value);
-
-      if (vibrationChart.data.labels.length > 50) {
-        vibrationChart.data.labels.shift();
-        vibrationChart.data.datasets[0].data.shift();
-      }
-
-      vibrationChart.update();
-      document.getElementById("status").innerText = "Last updated: " + new Date().toLocaleTimeString();
-      console.log("New data:", data);
-    }, (error) => {
-      console.error("Firebase read failed:", error);
-      document.getElementById("status").innerText = "Error: " + error.message;
+    ref.once('value').then(snapshot => {
+      document.getElementById("result").innerText = "Connected! Data loaded.";
+      console.log(snapshot.val());
+    }).catch(err => {
+      document.getElementById("result").innerText = "Error: " + err.message;
+      console.error(err);
     });
   </script>
 </body>
