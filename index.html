@@ -93,7 +93,7 @@
         },
         scales: {
           x: {
-            title: { display: true, text: 'Time', font: { size: 14 } },
+            title: { display: true, text: 'Time (Asia/Kolkata)', font: { size: 14 } },
             ticks: { color: '#333' }
           },
           y: {
@@ -105,7 +105,7 @@
       }
     });
 
-    // 🔹 Correct database path (based on your screenshot)
+    // Correct database path
     const ref = db.ref('vibration');
 
     // ===== Monitor connection =====
@@ -115,21 +115,31 @@
         : "⚠️ Disconnected from Firebase.";
     });
 
+    // Helper: format timestamp to India Standard Time (Asia/Kolkata)
+    function formatTimeToKolkata(timestamp) {
+      try {
+        return new Date(timestamp).toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch (e) {
+        return 'Invalid Time';
+      }
+    }
+
     // ===== Load existing data =====
     ref.once('value')
       .then(snapshot => {
         const data = snapshot.val();
-        console.log("Initial Data:", data); // Debug
         if (data) {
           Object.values(data).forEach(event => {
-            if (!event.timestamp && !event.time) return;
-
-            // Support both field names: timestamp OR time
             const t = event.timestamp || event.time;
             const v = event.value || event.vibration;
+            if (t === undefined || v === undefined) return;
 
-            const label = new Date(t)
-              .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const label = formatTimeToKolkata(t);
             chart.data.labels.push(label);
             chart.data.datasets[0].data.push(parseInt(v));
           });
@@ -151,9 +161,7 @@
       const v = event.value || event.vibration;
       if (t === undefined || v === undefined) return;
 
-      const label = new Date(t)
-        .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
+      const label = formatTimeToKolkata(t);
       chart.data.labels.push(label);
       chart.data.datasets[0].data.push(parseInt(v));
 
@@ -163,7 +171,6 @@
       }
 
       chart.update();
-      console.log("New data:", event);
     });
   </script>
 </body>
