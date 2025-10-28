@@ -1,85 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Vibration Live Monitor</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Realtime Vibration Monitor</title>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js"></script>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    body {
-      background: #0d1117;
-      color: #eee;
-      font-family: "Segoe UI", sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-    h2 {
-      color: #00ffc3;
-    }
-    #controls button {
-      background: #1e232a;
-      border: 1px solid #00ffc3;
-      color: #00ffc3;
-      border-radius: 8px;
-      padding: 6px 12px;
-      margin: 5px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: 0.2s;
-    }
-    #controls button.active {
-      background: #00ffc3;
-      color: #0d1117;
-    }
-    #status {
-      font-size: 1.2em;
-      margin-top: 10px;
-    }
-    #lastTime {
-      color: #8f8;
-      margin-bottom: 10px;
-    }
-    canvas {
-      width: 95%;
-      max-width: 900px;
-      background: #1a1f26;
-      border-radius: 12px;
-      padding: 10px;
-      margin-top: 10px;
-    }
-    #download {
-      margin-top: 15px;
-      background: #00ffc3;
-      color: #0d1117;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: 0.2s;
-    }
-    #download:hover {
-      background: #05ffdb;
-    }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background: #111; color: #fff; }
+    canvas { background: #000; border-radius: 12px; margin-top: 20px; width: 90%; max-width: 800px; }
+    #status { font-size: 1.2em; margin-top: 10px; }
+    #userInfo { font-size: 0.9em; color: #ccc; }
   </style>
 </head>
 <body>
-  <h2>🛰️ Vibration Live Monitor</h2>
+  <h2>Realtime Vibration Graph</h2>
   <div id="status">Connecting...</div>
-  <div id="lastTime">Last update: --</div>
-  <div id="controls">
-    <button onclick="setRange(1)">1h</button>
-    <button onclick="setRange(6)">6h</button>
-    <button onclick="setRange(12)">12h</button>
-    <button onclick="setRange(24)">24h</button>
-    <button onclick="setRange(0)">All</button>
-  </div>
-  <canvas id="chart" height="350"></canvas>
-  <button id="download" onclick="downloadCSV()">📥 Download CSV</button>
+  <div id="userInfo"></div>
+  <canvas id="vibrationChart"></canvas>
 
-  <script>
-    // ========= Firebase Configuration =========
+  <script type="module">
+    // 🔧 1. Your Firebase Configuration
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+    import { getDatabase, ref, onChildAdded } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+
     const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
@@ -91,102 +43,88 @@
   measurementId: "G-RYDGS81ZHW"
 };
 
+    // 🔥 2. Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    // 🔑 3. Login credentials (you can later make this a login form)
+    const USER_EMAIL = "your_email@example.com";
+    const USER_PASSWORD = "your_password";
 
-    // ===== User Path =====
-    const userPath = "/users/IqaIng1hKVzityL1fJqWvXFLv73/vibration";
+    // DOM elements
+    const status = document.getElementById("status");
+    const userInfo = document.getElementById("userInfo");
+    const ctx = document.getElementById("vibrationChart").getContext("2d");
 
-    // ===== Chart Setup =====
-    const ctx = document.getElementById('chart').getContext('2d');
+    // Chart setup
+    const data = {
+      labels: [],
+      datasets: [{
+        label: 'Vibration',
+        borderColor: 'lime',
+        borderWidth: 2,
+        data: [],
+        fill: false,
+        tension: 0.2
+      }]
+    };
+
     const chart = new Chart(ctx, {
       type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Vibration (0–1023)',
-          borderColor: '#00ffc3',
-          backgroundColor: 'rgba(0,255,200,0.2)',
-          data: [],
-          tension: 0.3,
-        }]
-      },
+      data,
       options: {
         animation: false,
         scales: {
           x: { title: { display: true, text: 'Time' } },
-          y: { title: { display: true, text: 'Vibration' }, min: 0, max: 1023 }
+          y: { title: { display: true, text: 'Vibration' } }
         }
       }
     });
 
-    const statusEl = document.getElementById("status");
-    const lastTimeEl = document.getElementById("lastTime");
-    const buttons = document.querySelectorAll("#controls button");
-
-    let selectedHours = 1;
-    let allData = [];
-
-    function setRange(hours) {
-      selectedHours = hours;
-      buttons.forEach(b => b.classList.remove("active"));
-      event.target.classList.add("active");
-      updateChart();
-    }
-
-    // ===== Realtime Firebase Listener =====
-    db.ref(userPath).limitToLast(1000).on("child_added", snap => {
-      const d = snap.val();
-      if (!d) return;
-      allData.push({
-        time: d.local_time || new Date().toLocaleTimeString(),
-        ts: d.timestamp || Date.now() / 1000,
-        vib: d.vibration || 0
+    // 🔥 4. Handle authentication
+    signInWithEmailAndPassword(auth, USER_EMAIL, USER_PASSWORD)
+      .then(() => {
+        status.innerText = "Authenticating...";
+      })
+      .catch(error => {
+        console.error(error);
+        status.innerText = "❌ Login failed: " + error.message;
       });
-      if (allData.length > 1000) allData.shift();
-      updateChart();
-      statusEl.innerHTML = d.vibration > 500 ? "🟢 Vibration Detected" : "🔴 Stable";
-      lastTimeEl.innerHTML = "Last update: " + (d.local_time || "--");
-    });
 
-    // ===== Chart Update =====
-    function updateChart() {
-      const now = Date.now() / 1000;
-      const filtered = selectedHours === 0
-        ? allData
-        : allData.filter(p => (now - p.ts) < selectedHours * 3600);
+    // 🧠 5. Detect user and auto-connect to their DB node
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        const uid = user.uid;
+        userInfo.innerText = "Signed in as: " + user.email;
+        status.innerText = "Connected ✅ (UID: " + uid.substring(0, 6) + "...)";
 
-      chart.data.labels = filtered.map(p => p.time);
-      chart.data.datasets[0].data = filtered.map(p => p.vib);
-      chart.update('none');
-    }
+        const userPath = "/users/" + uid + "/vibration";
+        const vibRef = ref(db, userPath);
 
-    // ===== CSV Download =====
-    function downloadCSV() {
-      if (allData.length === 0) {
-        alert("No data available to export!");
-        return;
+        // Stream live updates
+        onChildAdded(vibRef, snapshot => {
+          const val = snapshot.val();
+          const timeLabel = val.timestamp
+            ? new Date(val.timestamp).toLocaleTimeString()
+            : new Date().toLocaleTimeString();
+
+          data.labels.push(timeLabel);
+          data.datasets[0].data.push(val.vibration || 0);
+
+          // Keep only last 60 points
+          if (data.labels.length > 60) {
+            data.labels.shift();
+            data.datasets[0].data.shift();
+          }
+
+          chart.update();
+        });
+
+      } else {
+        status.innerText = "Not signed in ❌";
       }
-
-      let csv = "Local Time,Timestamp,Vibration\n";
-      allData.forEach(row => {
-        csv += `${row.time},${row.ts},${row.vib}\n`;
-      });
-
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "vibration_data.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    // Default button active
-    buttons[0].classList.add("active");
+    });
   </script>
 </body>
 </html>
