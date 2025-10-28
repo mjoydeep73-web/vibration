@@ -2,16 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Firebase Connection Test</title>
+  <title>Vibration Sensor Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      margin-bottom: 5px;
+    }
+    #status {
+      margin-bottom: 20px;
+      font-size: 16px;
+      color: #555;
+    }
+    canvas {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      max-width: 95%;
+    }
+  </style>
 </head>
 <body>
-  <h2>Firebase Connection Test</h2>
+  <h1>Vibration Sensor Live Dashboard</h1>
   <div id="status">Connecting to Firebase...</div>
+  <canvas id="vibrationChart" width="900" height="400"></canvas>
 
   <script>
-    // ======= Firebase Configuration =======
+    // ===== Firebase Configuration =====
     const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
@@ -23,32 +53,78 @@
   measurementId: "G-RYDGS81ZHW"
 };
 
-
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // Adjust this path to your actual DB node
-    const ref = db.ref('vibration_history');
+    // ===== Chart.js Setup =====
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Vibration (0 = Off, 1 = On)',
+          data: [],
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderWidth: 2,
+          tension: 0.3,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        scales: {
+          x: { title: { display: true, text: 'Time' } },
+          y: { 
+            title: { display: true, text: 'Vibration' }, 
+            min: 0, max: 1, ticks: { stepSize: 1 } 
+          }
+        }
+      }
+    });
 
-    // ======= Test Connection =======
+    const statusEl = document.getElementById("status");
+    const ref = db.ref('vibration_history'); // adjust to match your DB
+
+    // ===== Load existing data =====
     ref.once('value')
       .then(snapshot => {
-        document.getElementById('status').innerText = "✅ Connected! Data loaded.";
-        console.log("Full snapshot of vibration data:", snapshot.val());
+        const data = snapshot.val();
+        if(data){
+          Object.values(data).forEach(event => {
+            const label = new Date(event.timestamp).toLocaleTimeString();
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(event.value);
+          });
+          chart.update();
+        }
+        statusEl.innerText = "✅ Connected! Live updating...";
       })
       .catch(error => {
-        document.getElementById('status').innerText = "❌ Error connecting: " + error.message;
-        console.error("Firebase error:", error);
+        statusEl.innerText = "❌ Firebase Error: " + error.message;
+        console.error(error);
       });
 
-    // ======= Optional: Real-time listener =======
+    // ===== Listen for new vibration events =====
     ref.on('child_added', snapshot => {
-      const data = snapshot.val();
-      console.log("New vibration event:", data);
+      const event = snapshot.val();
+      if(!event || typeof event.value === 'undefined') return;
+
+      const label = new Date(event.timestamp).toLocaleTimeString();
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(event.value);
+
+      // Keep only the last 50 readings
+      if(chart.data.labels.length > 50){
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+
+      chart.update();
+      console.log("New vibration event:", event);
     });
   </script>
 </body>
 </html>
-
-
