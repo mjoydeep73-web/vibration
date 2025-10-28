@@ -55,6 +55,7 @@
   measurementId: "G-RYDGS81ZHW"
 };
 
+    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -67,13 +68,12 @@
       data: {
         labels: [],
         datasets: [{
-          label: 'Vibration Level',
+          label: 'Vibration Status',
           data: [],
           borderWidth: 3,
           tension: 0.3,
           pointRadius: 4,
           borderColor: (ctx) => {
-            // Dynamic border color based on value
             const value = ctx.raw;
             return value === 1 ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)';
           },
@@ -105,11 +105,12 @@
       }
     });
 
-    const ref = db.ref('vibration_history');
+    // 🔹 Correct database path (based on your screenshot)
+    const ref = db.ref('vibration');
 
     // ===== Monitor connection =====
     firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.innerText = snap.val() 
+      statusEl.innerText = snap.val()
         ? "✅ Connected to Firebase. Waiting for data..."
         : "⚠️ Disconnected from Firebase.";
     });
@@ -118,13 +119,19 @@
     ref.once('value')
       .then(snapshot => {
         const data = snapshot.val();
+        console.log("Initial Data:", data); // Debug
         if (data) {
           Object.values(data).forEach(event => {
-            if (!event.timestamp || typeof event.value === 'undefined') return;
-            const label = new Date(event.timestamp)
+            if (!event.timestamp && !event.time) return;
+
+            // Support both field names: timestamp OR time
+            const t = event.timestamp || event.time;
+            const v = event.value || event.vibration;
+
+            const label = new Date(t)
               .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             chart.data.labels.push(label);
-            chart.data.datasets[0].data.push(event.value);
+            chart.data.datasets[0].data.push(parseInt(v));
           });
           chart.update();
         }
@@ -138,21 +145,25 @@
     // ===== Real-time listener for new events =====
     ref.on('child_added', snapshot => {
       const event = snapshot.val();
-      if (!event || typeof event.value === 'undefined') return;
+      if (!event) return;
 
-      const label = new Date(event.timestamp)
+      const t = event.timestamp || event.time;
+      const v = event.value || event.vibration;
+      if (t === undefined || v === undefined) return;
+
+      const label = new Date(t)
         .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
       chart.data.labels.push(label);
-      chart.data.datasets[0].data.push(event.value);
+      chart.data.datasets[0].data.push(parseInt(v));
 
-      // Keep only last 50 points
       if (chart.data.labels.length > 50) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
       }
 
       chart.update();
+      console.log("New data:", event);
     });
   </script>
 </body>
