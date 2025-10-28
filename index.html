@@ -19,7 +19,6 @@
       color: #00ff88;
       text-align: center;
       padding: 20px;
-      overflow-x: hidden;
     }
     h1 {
       color: #00ff88;
@@ -28,7 +27,29 @@
     }
     #status {
       color: #aaffcc;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
+    }
+    #vibrationStatus {
+      display: inline-block;
+      font-size: 22px;
+      font-weight: bold;
+      margin: 10px 0 25px;
+      padding: 10px 30px;
+      border-radius: 10px;
+      text-shadow: 0 0 8px #00ff88;
+      transition: all 0.3s ease-in-out;
+    }
+    .on {
+      background-color: rgba(0,255,100,0.15);
+      color: #00ff88;
+      border: 1px solid #00ff88;
+      box-shadow: 0 0 20px #00ff88;
+    }
+    .off {
+      background-color: rgba(255,50,50,0.1);
+      color: #ff5555;
+      border: 1px solid #ff5555;
+      box-shadow: 0 0 20px #ff5555;
     }
     canvas {
       width: 95%;
@@ -49,6 +70,7 @@
 <body>
   <h1>Vibration Oscilloscope Dashboard</h1>
   <div id="status">Connecting to Firebase...</div>
+  <div id="vibrationStatus" class="off">Vibration: OFF</div>
   <canvas id="vibrationChart"></canvas>
 
   <script>
@@ -67,10 +89,15 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const statusEl = document.getElementById("status");
+    const vibStatusEl = document.getElementById("vibrationStatus");
     const canvas = document.getElementById('vibrationChart');
     const ctx = canvas.getContext('2d');
 
-    // ===== Gradient for Glowing Trail =====
+    // ===== Get user's system timezone =====
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+    console.log("Detected Timezone:", userTimeZone);
+
+    // ===== Gradient for Glow =====
     function createGlowGradient(ctx, chartArea) {
       const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
       gradient.addColorStop(0, 'rgba(0,255,136,0)');
@@ -80,7 +107,7 @@
       return gradient;
     }
 
-    // ===== Chart Configuration =====
+    // ===== Chart.js Config =====
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -99,16 +126,11 @@
         responsive: true,
         animation: false,
         plugins: {
-          legend: {
-            labels: {
-              color: '#00ff88',
-              font: { size: 14 }
-            }
-          }
+          legend: { labels: { color: '#00ff88', font: { size: 14 } } }
         },
         scales: {
           x: {
-            title: { display: true, text: 'Date & Time (Asia/Kolkata)', color: '#00ff88' },
+            title: { display: true, text: `Date & Time (${userTimeZone})`, color: '#00ff88' },
             ticks: { color: '#66ffaa', maxRotation: 0 },
             grid: { color: 'rgba(0,255,136,0.1)' }
           },
@@ -133,30 +155,45 @@
       }
     });
 
-    // ===== Helper: Convert Firebase timestamp to perfect local time =====
-    function formatTimeToKolkata(timestamp) {
-      // Ensure it uses India time (Asia/Kolkata)
-      const localTime = new Date(timestamp).toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
+    // ===== Time Formatter (local or fallback to Kolkata) =====
+    function formatTimeLocal(timestamp) {
+      return new Date(timestamp).toLocaleString('en-IN', {
+        timeZone: userTimeZone,
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: true
-      });
-      return localTime.replace(',', '');
+      }).replace(',', '');
     }
 
     // ===== Firebase Reference =====
     const ref = db.ref('vibration');
 
-    // ===== Connection Status =====
     firebase.database().ref(".info/connected").on("value", snap => {
       statusEl.innerText = snap.val()
-        ? "✅ Connected — Live Streaming (Kolkata Time)"
+        ? `✅ Connected — Streaming Live (${userTimeZone})`
         : "⚠️ Disconnected from Firebase";
     });
+
+    // ===== Helpers =====
+    function toNumber(val) {
+      const num = Number(val);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function updateVibrationIndicator(v) {
+      if (v === 1) {
+        vibStatusEl.innerText = "Vibration: ON";
+        vibStatusEl.classList.remove("off");
+        vibStatusEl.classList.add("on");
+      } else {
+        vibStatusEl.innerText = "Vibration: OFF";
+        vibStatusEl.classList.remove("on");
+        vibStatusEl.classList.add("off");
+      }
+    }
 
     // ===== Load Initial Data =====
     ref.once('value').then(snapshot => {
@@ -164,36 +201,35 @@
       if (data) {
         Object.values(data).forEach(event => {
           const t = event.timestamp || event.time;
-          const v = event.value || event.vibration;
-          if (t === undefined || v === undefined) return;
-          chart.data.labels.push(formatTimeToKolkata(t));
-          chart.data.datasets[0].data.push(parseInt(v));
+          const v = toNumber(event.value ?? event.vibration);
+          if (t === undefined) return;
+          chart.data.labels.push(formatTimeLocal(t));
+          chart.data.datasets[0].data.push(v);
         });
         chart.update();
       }
-      statusEl.innerText = "✅ Connected! Streaming Live...";
+      statusEl.innerText = `✅ Connected — Live Streaming (${userTimeZone})`;
     });
 
-    // ===== Real-Time Updates + Pulse Glow =====
+    // ===== Listen for New Data =====
     ref.on('child_added', snapshot => {
       const event = snapshot.val();
       if (!event) return;
 
       const t = event.timestamp || event.time;
-      const v = event.value || event.vibration;
-      if (t === undefined || v === undefined) return;
+      const v = toNumber(event.value ?? event.vibration);
 
-      chart.data.labels.push(formatTimeToKolkata(t));
-      chart.data.datasets[0].data.push(parseInt(v));
+      chart.data.labels.push(formatTimeLocal(t));
+      chart.data.datasets[0].data.push(v);
 
-      // Keep last 60 points
       if (chart.data.labels.length > 60) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
       }
 
-      // Pulse glow effect when vibration = 1
-      if (parseInt(v) === 1) {
+      updateVibrationIndicator(v);
+
+      if (v === 1) {
         canvas.classList.add("pulse");
         setTimeout(() => canvas.classList.remove("pulse"), 150);
       }
