@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Vibration Oscilloscope Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,7 +19,6 @@
       color: #00ff99;
       text-align: center;
       padding: 20px;
-      overflow-x: hidden;
     }
 
     h1 {
@@ -36,7 +35,7 @@
       font-size: 22px;
       padding: 8px 20px;
       border-radius: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       display: inline-block;
       transition: all 0.3s ease;
     }
@@ -44,14 +43,14 @@
     .on {
       color: #00ff99;
       border: 1px solid #00ff99;
-      background: rgba(0,255,136,0.15);
+      background: rgba(0, 255, 136, 0.15);
       box-shadow: 0 0 20px #00ff99;
     }
 
     .off {
       color: #ff6666;
       border: 1px solid #ff6666;
-      background: rgba(255,50,50,0.1);
+      background: rgba(255, 50, 50, 0.1);
       box-shadow: 0 0 20px #ff6666;
     }
 
@@ -63,6 +62,18 @@
       border-radius: 10px;
       background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
       box-shadow: 0 0 25px #00ff99;
+      margin-top: 15px;
+    }
+
+    #timeRange {
+      background-color: #001a00;
+      color: #00ff99;
+      border: 1px solid #00ff99;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: monospace;
+      box-shadow: 0 0 10px #00ff99;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -70,6 +81,17 @@
   <h1>Vibration Oscilloscope (Local Time)</h1>
   <div id="status">Connecting to Firebase...</div>
   <div id="vibrationStatus" class="off">Vibration: OFF</div>
+
+  <label for="timeRange">Time Window:</label>
+  <select id="timeRange">
+    <option value="15">Last 15 min</option>
+    <option value="30">Last 30 min</option>
+    <option value="60" selected>Last 1 hr</option>
+    <option value="120">Last 2 hr</option>
+    <option value="240">Last 4 hr</option>
+    <option value="1440">Last 24 hr</option>
+  </select>
+
   <canvas id="vibrationChart"></canvas>
 
   <script>
@@ -89,51 +111,52 @@
 
     const statusEl = document.getElementById("status");
     const vibStatusEl = document.getElementById("vibrationStatus");
+    const rangeSelect = document.getElementById("timeRange");
+
+    let timeWindowMin = parseInt(rangeSelect.value); // in minutes
 
     // ===== Chart.js Setup =====
-    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const ctx = document.getElementById("vibrationChart").getContext("2d");
     const chart = new Chart(ctx, {
-      type: 'line',
+      type: "line",
       data: {
         labels: [],
-        datasets: [{
-          label: 'Vibration (1 = ON, 0 = OFF)',
-          data: [],
-          borderColor: '#00ff99',
-          backgroundColor: 'rgba(0,255,136,0.1)',
-          borderWidth: 2,
-          tension: 0.3, // smooth line
-          pointRadius: 0
-        }]
+        datasets: [
+          {
+            label: "Vibration (1 = ON, 0 = OFF)",
+            data: [],
+            borderColor: "#00ff99",
+            backgroundColor: "rgba(0,255,136,0.1)",
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: 0
+          }
+        ]
       },
       options: {
         responsive: true,
-        animation: {
-          duration: 300, // smooth transition
-          easing: 'linear'
-        },
+        animation: { duration: 200, easing: "linear" },
         plugins: {
-          legend: {
-            labels: { color: '#00ff99' }
-          }
+          legend: { labels: { color: "#00ff99" } }
         },
         scales: {
           x: {
-            title: { display: true, text: 'Local Time', color: '#00ff99' },
-            ticks: { color: '#66ffaa' },
-            grid: { color: 'rgba(0,255,136,0.1)' }
+            title: { display: true, text: "Local Time", color: "#00ff99" },
+            ticks: { color: "#66ffaa" },
+            grid: { color: "rgba(0,255,136,0.1)" }
           },
           y: {
-            title: { display: true, text: 'Vibration', color: '#00ff99' },
+            title: { display: true, text: "Vibration", color: "#00ff99" },
             min: 0,
             max: 1,
-            ticks: { stepSize: 1, color: '#66ffaa' },
-            grid: { color: 'rgba(0,255,136,0.1)' }
+            ticks: { stepSize: 1, color: "#66ffaa" },
+            grid: { color: "rgba(0,255,136,0.1)" }
           }
         }
       }
     });
 
+    // ===== Indicator =====
     function updateVibrationIndicator(value) {
       if (value === 1) {
         vibStatusEl.textContent = "Vibration: ON";
@@ -146,7 +169,7 @@
       }
     }
 
-    // Connection status
+    // ===== Connection Status =====
     firebase.database().ref(".info/connected").on("value", snap => {
       statusEl.textContent = snap.val()
         ? "✅ Connected to Firebase"
@@ -154,26 +177,48 @@
     });
 
     const ref = db.ref("vibration");
+    const buffer = [];
 
-    // ===== Real-time updates (smooth animation) =====
+    // ===== Handle New Data =====
     ref.on("child_added", snap => {
       const data = snap.val();
       if (!data) return;
 
       const vibration = Number(data.value ?? data.vibration ?? 0);
-      const localTime = new Date().toLocaleTimeString(); // system local time
+      let ts = Number(data.timestamp);
 
-      chart.data.labels.push(localTime);
-      chart.data.datasets[0].data.push(vibration);
+      if (ts && ts < 1e12) ts *= 1000;
+      if (!ts) ts = Date.now();
 
-      if (chart.data.labels.length > 60) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
-      }
-
+      buffer.push({ time: ts, value: vibration });
+      updateChart();
       updateVibrationIndicator(vibration);
-      chart.update('active'); // smooth chart update
     });
+
+    // ===== Update Chart =====
+    function updateChart() {
+      const now = Date.now();
+      const windowMs = timeWindowMin * 60 * 1000;
+      const cutoff = now - windowMs;
+
+      // Keep only recent data
+      const filtered = buffer.filter(p => p.time >= cutoff);
+
+      chart.data.labels = filtered.map(p =>
+        new Date(p.time).toLocaleTimeString([], { hour12: true })
+      );
+      chart.data.datasets[0].data = filtered.map(p => p.value);
+      chart.update("active");
+    }
+
+    // ===== Range Change =====
+    rangeSelect.addEventListener("change", () => {
+      timeWindowMin = parseInt(rangeSelect.value);
+      updateChart();
+    });
+
+    // Auto-clean old data every minute
+    setInterval(updateChart, 60000);
   </script>
 </body>
 </html>
