@@ -14,24 +14,86 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background: #111; color: #fff; }
-    canvas { background: #000; border-radius: 12px; margin-top: 20px; width: 90%; max-width: 800px; }
-    #status { font-size: 1.2em; margin-top: 10px; }
-    #userInfo { font-size: 0.9em; color: #ccc; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #0c0c0c;
+      color: white;
+      text-align: center;
+      margin: 20px;
+    }
+    .card {
+      background: #111;
+      border-radius: 12px;
+      padding: 20px;
+      display: inline-block;
+      margin-bottom: 20px;
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+    }
+    input {
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      margin: 5px;
+      width: 200px;
+    }
+    button {
+      background: lime;
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    canvas {
+      background: black;
+      border-radius: 12px;
+      margin-top: 20px;
+      width: 90%;
+      max-width: 800px;
+    }
+    #logoutBtn {
+      background: red;
+      color: white;
+      margin-top: 10px;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h2>Realtime Vibration Graph</h2>
-  <div id="status">Connecting...</div>
-  <div id="userInfo"></div>
-  <canvas id="vibrationChart"></canvas>
+
+  <!-- Login Card -->
+  <div id="loginCard" class="card">
+    <h3>Sign In</h3>
+    <input type="email" id="email" placeholder="Email" /><br />
+    <input type="password" id="password" placeholder="Password" /><br />
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" style="display:none;">
+    <div id="userInfo"></div>
+    <button id="logoutBtn">Logout</button>
+    <div id="status">Connecting...</div>
+    <canvas id="vibrationChart"></canvas>
+  </div>
 
   <script type="module">
-    // 🔧 1. Your Firebase Configuration
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-    import { getDatabase, ref, onChildAdded } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut,
+    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+    import {
+      getDatabase,
+      ref,
+      onChildAdded,
+    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
 
+    // 🔧 Your Firebase Config
     const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
@@ -43,16 +105,16 @@
   measurementId: "G-RYDGS81ZHW"
 };
 
-    // 🔥 2. Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // 🔑 3. Login credentials (you can later make this a login form)
-    const USER_EMAIL = "your_email@example.com";
-    const USER_PASSWORD = "your_password";
-
-    // DOM elements
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const loginCard = document.getElementById("loginCard");
+    const dashboard = document.getElementById("dashboard");
     const status = document.getElementById("status");
     const userInfo = document.getElementById("userInfo");
     const ctx = document.getElementById("vibrationChart").getContext("2d");
@@ -60,50 +122,61 @@
     // Chart setup
     const data = {
       labels: [],
-      datasets: [{
-        label: 'Vibration',
-        borderColor: 'lime',
-        borderWidth: 2,
-        data: [],
-        fill: false,
-        tension: 0.2
-      }]
+      datasets: [
+        {
+          label: "Vibration",
+          borderColor: "lime",
+          borderWidth: 2,
+          data: [],
+          fill: false,
+          tension: 0.2,
+        },
+      ],
     };
 
     const chart = new Chart(ctx, {
-      type: 'line',
+      type: "line",
       data,
       options: {
         animation: false,
         scales: {
-          x: { title: { display: true, text: 'Time' } },
-          y: { title: { display: true, text: 'Vibration' } }
-        }
+          x: { title: { display: true, text: "Time" } },
+          y: { title: { display: true, text: "Vibration" } },
+        },
+      },
+    });
+
+    // 🔑 LOGIN
+    loginBtn.addEventListener("click", async () => {
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        status.innerText = "Authenticating...";
+      } catch (error) {
+        alert("Login failed: " + error.message);
       }
     });
 
-    // 🔥 4. Handle authentication
-    signInWithEmailAndPassword(auth, USER_EMAIL, USER_PASSWORD)
-      .then(() => {
-        status.innerText = "Authenticating...";
-      })
-      .catch(error => {
-        console.error(error);
-        status.innerText = "❌ Login failed: " + error.message;
-      });
+    // 🔓 LOGOUT
+    logoutBtn.addEventListener("click", () => {
+      signOut(auth);
+    });
 
-    // 🧠 5. Detect user and auto-connect to their DB node
-    onAuthStateChanged(auth, user => {
+    // 👤 AUTH STATE CHANGE
+    onAuthStateChanged(auth, (user) => {
       if (user) {
-        const uid = user.uid;
-        userInfo.innerText = "Signed in as: " + user.email;
-        status.innerText = "Connected ✅ (UID: " + uid.substring(0, 6) + "...)";
+        loginCard.style.display = "none";
+        dashboard.style.display = "block";
+        logoutBtn.style.display = "inline-block";
+        userInfo.innerText = "👤 " + user.email;
+        status.innerText = "Connected ✅";
 
-        const userPath = "/users/" + uid + "/vibration";
+        const userPath = "/users/" + user.uid + "/vibration";
         const vibRef = ref(db, userPath);
 
-        // Stream live updates
-        onChildAdded(vibRef, snapshot => {
+        // Live updates
+        onChildAdded(vibRef, (snapshot) => {
           const val = snapshot.val();
           const timeLabel = val.timestamp
             ? new Date(val.timestamp).toLocaleTimeString()
@@ -112,7 +185,6 @@
           data.labels.push(timeLabel);
           data.datasets[0].data.push(val.vibration || 0);
 
-          // Keep only last 60 points
           if (data.labels.length > 60) {
             data.labels.shift();
             data.datasets[0].data.shift();
@@ -120,9 +192,10 @@
 
           chart.update();
         });
-
       } else {
-        status.innerText = "Not signed in ❌";
+        loginCard.style.display = "block";
+        dashboard.style.display = "none";
+        logoutBtn.style.display = "none";
       }
     });
   </script>
