@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Vibration Graph - Local Time</title>
+  <title>Vibration Oscilloscope Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Chart.js -->
@@ -15,59 +15,92 @@
   <style>
     body {
       font-family: monospace;
-      background: #000;
+      background-color: #000;
       color: #00ff99;
       text-align: center;
       padding: 20px;
     }
+
     h1 {
-      color: #00ff99;
-      text-shadow: 0 0 10px #00ff99;
+      text-shadow: 0 0 15px #00ff99;
+      margin-bottom: 5px;
     }
+
     #status {
-      color: #aaffcc;
-      margin: 10px 0;
+      color: #99ffcc;
+      margin-bottom: 10px;
     }
+
     #vibrationStatus {
-      display: inline-block;
       font-size: 20px;
       padding: 8px 20px;
       border-radius: 10px;
       margin-bottom: 20px;
-      text-shadow: 0 0 8px #00ff99;
-      transition: all 0.3s;
+      display: inline-block;
+      transition: all 0.3s ease;
     }
+
     .on {
       color: #00ff99;
-      background: rgba(0,255,136,0.15);
       border: 1px solid #00ff99;
+      background: rgba(0,255,136,0.15);
       box-shadow: 0 0 20px #00ff99;
     }
+
     .off {
       color: #ff6666;
-      background: rgba(255,50,50,0.1);
       border: 1px solid #ff6666;
+      background: rgba(255,50,50,0.1);
       box-shadow: 0 0 20px #ff6666;
     }
+
     canvas {
       width: 95%;
       max-width: 1100px;
       height: 450px;
       border: 1px solid #00ff99;
       border-radius: 10px;
-      box-shadow: 0 0 20px #00ff99;
       background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
+      box-shadow: 0 0 25px #00ff99;
+      margin-top: 10px;
+    }
+
+    select {
+      background: #001a00;
+      color: #00ff99;
+      border: 1px solid #00ff99;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      outline: none;
+      box-shadow: 0 0 10px #00ff99;
+    }
+
+    select:hover {
+      background: #002a00;
     }
   </style>
 </head>
 <body>
-  <h1>Vibration Dashboard (Local Time)</h1>
+  <h1>Vibration Oscilloscope (Local Time)</h1>
   <div id="status">Connecting to Firebase...</div>
   <div id="vibrationStatus" class="off">Vibration: OFF</div>
+
+  <label for="timeRange">⏱ View last:</label>
+  <select id="timeRange">
+    <option value="1">1 Hour</option>
+    <option value="2">2 Hours</option>
+    <option value="4">4 Hours</option>
+    <option value="8">8 Hours</option>
+    <option value="12">12 Hours</option>
+    <option value="24" selected>24 Hours</option>
+  </select>
+
   <canvas id="vibrationChart"></canvas>
 
   <script>
-    // ==== Firebase Config ====
+    // ===== Firebase Config =====
     const firebaseConfig = {
       apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
       authDomain: "vibrationstatus.firebaseapp.com",
@@ -81,10 +114,11 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const statusEl = document.getElementById('status');
-    const vibStatusEl = document.getElementById('vibrationStatus');
+    const statusEl = document.getElementById("status");
+    const vibStatusEl = document.getElementById("vibrationStatus");
+    const timeRangeEl = document.getElementById("timeRange");
 
-    // ==== Chart Setup ====
+    // ===== Chart.js Setup =====
     const ctx = document.getElementById('vibrationChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -96,12 +130,16 @@
           borderColor: '#00ff99',
           backgroundColor: 'rgba(0,255,136,0.1)',
           borderWidth: 2,
-          tension: 0.25,
+          tension: 0.3,
           pointRadius: 0
         }]
       },
       options: {
-        animation: false,
+        responsive: true,
+        animation: {
+          duration: 300,
+          easing: 'linear'
+        },
         plugins: {
           legend: { labels: { color: '#00ff99' } }
         },
@@ -113,7 +151,9 @@
           },
           y: {
             title: { display: true, text: 'Vibration', color: '#00ff99' },
-            min: 0, max: 1, ticks: { stepSize: 1, color: '#66ffaa' },
+            min: 0,
+            max: 1,
+            ticks: { stepSize: 1, color: '#66ffaa' },
             grid: { color: 'rgba(0,255,136,0.1)' }
           }
         }
@@ -132,31 +172,74 @@
       }
     }
 
+    // Track current Firebase listener
+    let listener = null;
+
+    function loadData(hours) {
+      if (listener) listener.off(); // remove old listener
+
+      const ref = db.ref("vibration");
+
+      // Get cutoff timestamp (hours ago)
+      const cutoff = Date.now() - hours * 60 * 60 * 1000;
+
+      statusEl.textContent = `📡 Loading last ${hours} hour(s)...`;
+
+      ref.orderByChild("timestamp").startAt(cutoff).once("value", snap => {
+        chart.data.labels = [];
+        chart.data.datasets[0].data = [];
+
+        const data = snap.val();
+        if (data) {
+          Object.values(data).forEach(ev => {
+            const ts = Number(ev.timestamp ?? 0);
+            const vibration = Number(ev.value ?? 0);
+            if (ts > 0) {
+              const localTime = new Date(ts).toLocaleTimeString();
+              chart.data.labels.push(localTime);
+              chart.data.datasets[0].data.push(vibration);
+            }
+          });
+          chart.update();
+          statusEl.textContent = `✅ Showing last ${hours} hour(s)`;
+        } else {
+          statusEl.textContent = `⚠️ No data found in last ${hours} hour(s)`;
+        }
+      });
+
+      // Real-time updates (after initial load)
+      listener = ref.orderByChild("timestamp").startAt(cutoff);
+      listener.on("child_added", snap => {
+        const ev = snap.val();
+        const ts = Number(ev.timestamp ?? 0);
+        const vibration = Number(ev.value ?? 0);
+        const localTime = new Date(ts).toLocaleTimeString();
+
+        chart.data.labels.push(localTime);
+        chart.data.datasets[0].data.push(vibration);
+        updateVibrationIndicator(vibration);
+
+        // Trim older data beyond selected range
+        while (chart.data.labels.length > 300) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+        chart.update('active');
+      });
+    }
+
     firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.textContent = snap.val() ? "✅ Connected to Firebase" : "⚠️ Disconnected";
+      statusEl.textContent = snap.val()
+        ? "✅ Connected to Firebase"
+        : "⚠️ Disconnected";
     });
 
-    const ref = db.ref("vibration");
+    // Load initial data for default range
+    loadData(Number(timeRangeEl.value));
 
-    ref.on("child_added", snap => {
-      const data = snap.val();
-      if (!data) return;
-
-      const vibration = Number(data.value ?? data.vibration ?? 0);
-
-      // ✅ Always use system local time
-      const localTime = new Date().toLocaleTimeString();
-
-      chart.data.labels.push(localTime);
-      chart.data.datasets[0].data.push(vibration);
-
-      if (chart.data.labels.length > 60) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
-      }
-
-      updateVibrationIndicator(vibration);
-      chart.update();
+    // When user changes time range
+    timeRangeEl.addEventListener("change", () => {
+      loadData(Number(timeRangeEl.value));
     });
   </script>
 </body>
