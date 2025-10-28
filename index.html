@@ -4,11 +4,7 @@
   <meta charset="UTF-8">
   <title>Vibration Oscilloscope Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -21,40 +17,28 @@
       padding: 20px;
       overflow-x: hidden;
     }
-
-    h1 {
-      text-shadow: 0 0 15px #00ff99;
-      margin-bottom: 5px;
-    }
-
-    #status {
-      color: #99ffcc;
-      margin-bottom: 10px;
-    }
-
+    h1 { text-shadow: 0 0 15px #00ff99; margin-bottom: 5px; }
+    #status { color: #99ffcc; margin-bottom: 10px; }
     #vibrationStatus {
       font-size: 22px;
       padding: 8px 20px;
       border-radius: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
       display: inline-block;
       transition: all 0.3s ease;
     }
-
     .on {
       color: #00ff99;
       border: 1px solid #00ff99;
-      background: rgba(0, 255, 136, 0.15);
+      background: rgba(0,255,136,0.15);
       box-shadow: 0 0 20px #00ff99;
     }
-
     .off {
       color: #ff6666;
       border: 1px solid #ff6666;
-      background: rgba(255, 50, 50, 0.1);
+      background: rgba(255,50,50,0.1);
       box-shadow: 0 0 20px #ff6666;
     }
-
     canvas {
       width: 95%;
       max-width: 1100px;
@@ -63,18 +47,6 @@
       border-radius: 10px;
       background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
       box-shadow: 0 0 25px #00ff99;
-      margin-top: 15px;
-    }
-
-    #timeRange {
-      background-color: #001a00;
-      color: #00ff99;
-      border: 1px solid #00ff99;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-family: monospace;
-      box-shadow: 0 0 10px #00ff99;
-      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -82,21 +54,10 @@
   <h1>Vibration Oscilloscope (Local Time)</h1>
   <div id="status">Connecting to Firebase...</div>
   <div id="vibrationStatus" class="off">Vibration: OFF</div>
-
-  <label for="timeRange">Time Window:</label>
-  <select id="timeRange">
-    <option value="15">Last 15 min</option>
-    <option value="30">Last 30 min</option>
-    <option value="60" selected>Last 1 hr</option>
-    <option value="120">Last 2 hr</option>
-    <option value="240">Last 4 hr</option>
-    <option value="1440">Last 24 hr</option>
-  </select>
-
   <canvas id="vibrationChart"></canvas>
 
   <script>
-    // ===== Firebase Config =====
+    // === Firebase Config ===
     const firebaseConfig = {
       apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
       authDomain: "vibrationstatus.firebaseapp.com",
@@ -104,53 +65,42 @@
       projectId: "vibrationstatus",
       storageBucket: "vibrationstatus.appspot.com",
       messagingSenderId: "1001204540193",
-      appId: "1:1001204540193:web:79495c246902bee191d460",
-      measurementId: "G-RYDGS81ZHW"
+      appId: "1:1001204540193:web:79495c246902bee191d460"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const statusEl = document.getElementById("status");
     const vibStatusEl = document.getElementById("vibrationStatus");
-    const rangeSelect = document.getElementById("timeRange");
 
-    let timeWindowMin = parseInt(rangeSelect.value);
-    let buffer = [];
-
-    // ===== Chart.js Setup =====
-    const ctx = document.getElementById("vibrationChart").getContext("2d");
+    // === Chart.js ===
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
     const chart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label: "Vibration (1 = ON, 0 = OFF)",
-          data: [],
-          borderColor: "#00ff99",
-          backgroundColor: "rgba(0,255,136,0.15)",
-          borderWidth: 2,
-          tension: 0.3,
-          pointRadius: 0
-        }]
-      },
+      type: 'line',
+      data: { labels: [], datasets: [{
+        label: 'Vibration (1 = ON, 0 = OFF)',
+        data: [],
+        borderColor: '#00ff99',
+        backgroundColor: 'rgba(0,255,136,0.1)',
+        borderWidth: 2,
+        tension: 0.3,
+        pointRadius: 0
+      }]},
       options: {
         responsive: true,
-        animation: false,
-        plugins: {
-          legend: { labels: { color: "#00ff99" } }
-        },
+        animation: { duration: 300, easing: 'linear' },
+        plugins: { legend: { labels: { color: '#00ff99' } } },
         scales: {
           x: {
-            title: { display: true, text: "Local Time", color: "#00ff99" },
-            ticks: { color: "#66ffaa" },
-            grid: { color: "rgba(0,255,136,0.1)" }
+            title: { display: true, text: 'Local Time', color: '#00ff99' },
+            ticks: { color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
           },
           y: {
-            title: { display: true, text: "Vibration", color: "#00ff99" },
-            min: 0,
-            max: 1,
-            ticks: { stepSize: 1, color: "#66ffaa" },
-            grid: { color: "rgba(0,255,136,0.1)" }
+            title: { display: true, text: 'Vibration', color: '#00ff99' },
+            min: 0, max: 1,
+            ticks: { stepSize: 1, color: '#66ffaa' },
+            grid: { color: 'rgba(0,255,136,0.1)' }
           }
         }
       }
@@ -159,58 +109,48 @@
     function updateVibrationIndicator(value) {
       if (value === 1) {
         vibStatusEl.textContent = "Vibration: ON";
-        vibStatusEl.classList.remove("off");
-        vibStatusEl.classList.add("on");
+        vibStatusEl.classList.replace("off", "on");
       } else {
         vibStatusEl.textContent = "Vibration: OFF";
-        vibStatusEl.classList.remove("on");
-        vibStatusEl.classList.add("off");
+        vibStatusEl.classList.replace("on", "off");
       }
     }
 
     firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.textContent = snap.val() ? "✅ Connected to Firebase" : "⚠️ Disconnected";
+      statusEl.textContent = snap.val()
+        ? "✅ Connected to Firebase"
+        : "⚠️ Disconnected";
     });
 
-    const ref = db.ref("vibration");
-
-    // ===== Load existing + listen for new =====
-    ref.on("value", snapshot => {
-      const data = snapshot.val();
-      if (!data) return;
-
-      buffer = Object.values(data).map(entry => ({
-        time: entry.timestamp,
-        value: Number(entry.value)
-      }));
-
-      updateChart();
-    });
+    // === Fetch last 60 minutes of data ===
+    const ref = db.ref("vibration").orderByChild("timestamp").limitToLast(3600);
 
     ref.on("child_added", snap => {
-      const entry = snap.val();
-      if (!entry) return;
-      buffer.push({ time: entry.timestamp, value: Number(entry.value) });
-      updateVibrationIndicator(Number(entry.value));
-      updateChart();
-    });
+      const data = snap.val();
+      if (!data) return;
 
-    function updateChart() {
-      const now = Date.now();
-      const windowMs = timeWindowMin * 60 * 1000;
-      const cutoff = now - windowMs;
+      let vibration = Number(data.value ?? 0);
+      let ts = data.timestamp;
 
-      const filtered = buffer.filter(p => p.time >= cutoff);
-      chart.data.labels = filtered.map(p => new Date(p.time).toLocaleTimeString());
-      chart.data.datasets[0].data = filtered.map(p => p.value);
-      chart.update();
-    }
+      // Convert timestamp (seconds → ms if needed)
+      if (ts < 1e12) ts *= 1000;
 
-    rangeSelect.addEventListener("change", () => {
-      timeWindowMin = parseInt(rangeSelect.value);
-      updateChart();
+      const localTime = new Date(ts).toLocaleTimeString();
+
+      chart.data.labels.push(localTime);
+      chart.data.datasets[0].data.push(vibration);
+
+      // Keep last 60 minutes visible
+      if (chart.data.labels.length > 3600) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+
+      updateVibrationIndicator(vibration);
+      chart.update('active');
     });
   </script>
 </body>
 </html>
+
 
