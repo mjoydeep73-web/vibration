@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Vibration Oscilloscope Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -119,47 +119,43 @@
 
     // ===== Chart.js Setup =====
     const ctx = document.getElementById("vibrationChart").getContext("2d");
-
     const chart = new Chart(ctx, {
       type: "line",
       data: {
         labels: [],
-        datasets: [
-          {
-            label: "Vibration (1 = ON, 0 = OFF)",
-            data: [],
-            borderColor: "#00ff99",
-            backgroundColor: "rgba(0,255,136,0.15)",
-            borderWidth: 2,
-            tension: 0.3,
-            pointRadius: 0,
-          },
-        ],
+        datasets: [{
+          label: "Vibration (1 = ON, 0 = OFF)",
+          data: [],
+          borderColor: "#00ff99",
+          backgroundColor: "rgba(0,255,136,0.15)",
+          borderWidth: 2,
+          tension: 0.3,
+          pointRadius: 0
+        }]
       },
       options: {
         responsive: true,
         animation: false,
         plugins: {
-          legend: { labels: { color: "#00ff99" } },
+          legend: { labels: { color: "#00ff99" } }
         },
         scales: {
           x: {
             title: { display: true, text: "Local Time", color: "#00ff99" },
             ticks: { color: "#66ffaa" },
-            grid: { color: "rgba(0,255,136,0.1)" },
+            grid: { color: "rgba(0,255,136,0.1)" }
           },
           y: {
             title: { display: true, text: "Vibration", color: "#00ff99" },
             min: 0,
             max: 1,
             ticks: { stepSize: 1, color: "#66ffaa" },
-            grid: { color: "rgba(0,255,136,0.1)" },
-          },
-        },
-      },
+            grid: { color: "rgba(0,255,136,0.1)" }
+          }
+        }
+      }
     });
 
-    // ===== Vibration Indicator =====
     function updateVibrationIndicator(value) {
       if (value === 1) {
         vibStatusEl.textContent = "Vibration: ON";
@@ -172,30 +168,34 @@
       }
     }
 
-    // ===== Firebase Connection Status =====
     firebase.database().ref(".info/connected").on("value", snap => {
-      statusEl.textContent = snap.val()
-        ? "✅ Connected to Firebase"
-        : "⚠️ Disconnected";
+      statusEl.textContent = snap.val() ? "✅ Connected to Firebase" : "⚠️ Disconnected";
     });
 
-    // ===== Realtime Data Stream =====
     const ref = db.ref("vibration");
-    ref.on("child_added", snap => {
-      const data = snap.val();
+
+    // ===== Load existing + listen for new =====
+    ref.on("value", snapshot => {
+      const data = snapshot.val();
       if (!data) return;
 
-      const vibration = Number(data.value ?? data.vibration ?? 0);
-      let ts = Number(data.timestamp);
-      if (ts && ts < 1e12) ts *= 1000; // convert seconds to ms
-      if (!ts) ts = Date.now();
+      buffer = Object.values(data).map(entry => ({
+        time: entry.timestamp,
+        value: Number(entry.value)
+      }));
 
-      buffer.push({ time: ts, value: vibration });
-      updateVibrationIndicator(vibration);
+      updateChart();
     });
 
-    // ===== Animate Graph =====
-    function animateSweep() {
+    ref.on("child_added", snap => {
+      const entry = snap.val();
+      if (!entry) return;
+      buffer.push({ time: entry.timestamp, value: Number(entry.value) });
+      updateVibrationIndicator(Number(entry.value));
+      updateChart();
+    });
+
+    function updateChart() {
       const now = Date.now();
       const windowMs = timeWindowMin * 60 * 1000;
       const cutoff = now - windowMs;
@@ -203,27 +203,14 @@
       const filtered = buffer.filter(p => p.time >= cutoff);
       chart.data.labels = filtered.map(p => new Date(p.time).toLocaleTimeString());
       chart.data.datasets[0].data = filtered.map(p => p.value);
-
       chart.update();
-
-      // Add the glow/fade overlay
-      const fadeCtx = chart.ctx;
-      fadeCtx.save();
-      fadeCtx.globalCompositeOperation = "lighter";
-      fadeCtx.shadowColor = "#00ff99";
-      fadeCtx.shadowBlur = 20;
-      fadeCtx.restore();
-
-      requestAnimationFrame(animateSweep);
     }
 
-    // ===== Time Range Selector =====
     rangeSelect.addEventListener("change", () => {
       timeWindowMin = parseInt(rangeSelect.value);
+      updateChart();
     });
-
-    // ===== Start Animation =====
-    animateSweep();
   </script>
 </body>
 </html>
+
