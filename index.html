@@ -1,225 +1,192 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Vibration Sensor Realtime Graph</title>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      background: #121212;
-      color: #f1f1f1;
-      text-align: center;
-      margin: 0;
-      padding: 30px;
-    }
-    canvas {
-      background: #1e1e1e;
-      border-radius: 10px;
-      max-width: 900px;
-      width: 95%;
-      margin-top: 20px;
-    }
-    #login {
-      margin-top: 20px;
-    }
-    input {
-      padding: 8px;
-      margin: 5px;
-      border-radius: 5px;
-      border: none;
-    }
-    button {
-      padding: 8px 14px;
-      background: #0078ff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover { background: #005ed6; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibration Live Graph (with Auth - Fixed)</title>
 
-    #status {
-      display: inline-block;
-      margin-top: 10px;
-      font-size: 16px;
-      font-weight: 500;
-    }
-    #dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      margin-right: 6px;
-      background: gray;
-    }
-  </style>
+<!-- Firebase + Chart.js -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<style>
+  body {
+    background: #0f172a;
+    color: #f1f5f9;
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+  #loginBox {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 12px;
+    display: inline-block;
+  }
+  input {
+    margin: 5px;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+  }
+  button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: #38bdf8;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+  }
+  canvas {
+    background: #1e293b;
+    border-radius: 12px;
+    max-width: 800px;
+    margin-top: 20px;
+  }
+  #alertBox {
+    display: none;
+    background: #ef4444;
+    color: white;
+    padding: 10px;
+    margin: 10px auto;
+    border-radius: 8px;
+    width: fit-content;
+  }
+</style>
 </head>
+
 <body>
-  <h2>📈 Vibration Sensor — Live + Last 50</h2>
+  <h2>📈 Vibration Live Graph (Last 30 Minutes)</h2>
 
-  <!-- Connection Indicator -->
-  <div id="status"><span id="dot"></span><span id="stateText">Disconnected</span></div>
-
-  <div id="login">
-    <input type="email" id="email" placeholder="Email" value="mjoydeep73@gmail.com">
-    <input type="password" id="password" placeholder="Password" value="12345678">
+  <div id="loginBox">
+    <h3>Sign in to Firebase</h3>
+    <input type="email" id="email" placeholder="Email" value="mjoydeep73@gmail.com"><br>
+    <input type="password" id="password" placeholder="Password" value="12345678"><br>
     <button onclick="login()">Login</button>
+    <p id="loginStatus"></p>
   </div>
 
-  <canvas id="vibrationChart" height="400"></canvas>
+  <div id="graphBox" style="display:none;">
+    <div id="alertBox">⚠️ Vibration Detected!</div>
+    <canvas id="vibrationChart" width="800" height="400"></canvas>
+  </div>
 
-  <script>
-    // --- Firebase Config ---
-    const firebaseConfig = {
-  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  authDomain: "vibrationstatus.firebaseapp.com",
-  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "vibrationstatus",
-  storageBucket: "vibrationstatus.firebasestorage.app",
-  messagingSenderId: "1001204540193",
-  appId: "1:1001204540193:web:79495c246902bee191d460",
-  measurementId: "G-RYDGS81ZHW"
-};
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
+<script>
+  // --- Firebase Config ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+    databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+  firebase.initializeApp(firebaseConfig);
 
-    let chart;
-    let labels = [];
-    let dataPoints = [];
-    let connected = false;
-    let latestRef;
+  const auth = firebase.auth();
+  const db = firebase.database();
 
-    // --- Status Indicator ---
-    function setStatus(isConnected) {
-      const dot = document.getElementById('dot');
-      const text = document.getElementById('stateText');
-      if (isConnected) {
-        dot.style.background = 'limegreen';
-        text.textContent = 'Connected';
-      } else {
-        dot.style.background = 'red';
-        text.textContent = 'Disconnected';
-      }
+  const loginBox = document.getElementById("loginBox");
+  const graphBox = document.getElementById("graphBox");
+  const alertBox = document.getElementById("alertBox");
+  const statusText = document.getElementById("loginStatus");
+
+  let vibrationChart = null; // will hold chart instance
+
+  function login() {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+
+    auth.signInWithEmailAndPassword(email, pass)
+      .then(() => {
+        statusText.textContent = "✅ Login successful!";
+        loginBox.style.display = "none";
+        graphBox.style.display = "block";
+        startRealtimeChart();
+      })
+      .catch((err) => {
+        statusText.textContent = "❌ " + err.message;
+      });
+  }
+
+  function startRealtimeChart() {
+    // Destroy previous chart instance if exists
+    if (vibrationChart) {
+      vibrationChart.destroy();
+      console.log("Destroyed old chart instance");
     }
 
-    // --- Chart Setup ---
-    function createChart() {
-      const ctx = document.getElementById('vibrationChart').getContext('2d');
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Vibration (1 = Active)',
-            data: dataPoints,
-            borderColor: '#00e5ff',
-            borderWidth: 2,
-            fill: false,
-            pointRadius: 2
-          }]
+    // Chart.js setup
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const chartData = {
+      labels: [],
+      datasets: [{
+        label: 'Vibration (0=Normal, 1=Active)',
+        data: [],
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,0.2)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3
+      }]
+    };
+    const chartOptions = {
+      animation: false,
+      scales: {
+        x: { 
+          type: 'time',
+          time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
+          ticks: { color: '#cbd5e1' }
         },
-        options: {
-          scales: {
-            x: { title: { display: true, text: 'Time (Local)' } },
-            y: {
-              min: 0, max: 1,
-              ticks: { stepSize: 1 },
-              title: { display: true, text: 'State' }
-            }
-          },
-          animation: false,
-          plugins: {
-            legend: { labels: { color: 'white' } }
-          }
+        y: { 
+          min: -0.2, max: 1.2,
+          ticks: { stepSize: 1, color: '#cbd5e1' }
         }
-      });
-    }
+      },
+      plugins: {
+        legend: { labels: { color: '#f1f5f9' } }
+      }
+    };
 
-    // --- Convert UNIX to local readable time ---
-    function formatTime(ts) {
-      const date = new Date(ts * 1000);
-      return date.toLocaleTimeString();
-    }
+    // Create chart safely
+    vibrationChart = new Chart(ctx, { type: 'line', data: chartData, options: chartOptions });
+    const WINDOW_MS = 30 * 60 * 1000; // 30 min
 
-    // --- Load last 50 records from history ---
-    function loadHistory() {
-      db.ref("vibration/history").limitToLast(50).once("value", (snapshot) => {
-        labels.length = 0;
-        dataPoints.length = 0;
-        snapshot.forEach((child) => {
-          const val = child.val();
-          labels.push(formatTime(val.ts));
-          dataPoints.push(val.vibration);
-        });
-        chart.update();
-        console.log("Loaded history");
-      });
-    }
+    const updateChart = (vibValue) => {
+      const now = new Date();
+      chartData.labels.push(now);
+      chartData.datasets[0].data.push(vibValue);
 
-    // --- Start realtime updates ---
-    function startRealtime() {
-      latestRef = db.ref("vibration/latest");
-      latestRef.on("value", (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-          setStatus(true);
-          connected = true;
+      // Keep last 30 minutes of data
+      while (chartData.labels.length && (now - chartData.labels[0]) > WINDOW_MS) {
+        chartData.labels.shift();
+        chartData.datasets[0].data.shift();
+      }
 
-          const time = formatTime(val.ts);
-          labels.push(time);
-          dataPoints.push(val.vibration);
-
-          if (labels.length > 50) {
-            labels.shift();
-            dataPoints.shift();
-          }
-          chart.update();
-        }
-      }, (error) => {
-        console.error("Realtime error:", error);
-        setStatus(false);
-        connected = false;
-      });
-    }
-
-    // --- Monitor connection state ---
-    db.ref(".info/connected").on("value", (snap) => {
-      if (snap.val() === true) {
-        setStatus(true);
-        connected = true;
+      // Color change + alert box
+      if (vibValue === 1) {
+        chartData.datasets[0].borderColor = '#f87171';
+        chartData.datasets[0].backgroundColor = 'rgba(248,113,113,0.2)';
+        alertBox.style.display = 'block';
       } else {
-        setStatus(false);
-        connected = false;
+        chartData.datasets[0].borderColor = '#38bdf8';
+        chartData.datasets[0].backgroundColor = 'rgba(56,189,248,0.2)';
+        alertBox.style.display = 'none';
+      }
+
+      vibrationChart.update();
+    };
+
+    // Firebase listener
+    const ref = db.ref("vibration/latest");
+    ref.off(); // prevent multiple subscriptions
+    ref.on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (data && typeof data.vibration !== 'undefined') {
+        console.log("Firebase update:", data);
+        updateChart(Number(data.vibration));
       }
     });
-
-    // --- Login & start ---
-    function login() {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
-
-      auth.signInWithEmailAndPassword(email, pass)
-        .then(() => {
-          document.getElementById('login').style.display = 'none';
-          createChart();
-          loadHistory();
-          startRealtime();
-          setStatus(true);
-        })
-        .catch((error) => {
-          alert("Login failed: " + error.message);
-        });
-    }
-
-    // --- Reconnect check ---
-    setInterval(() => {
-      if (!connected) setStatus(false);
-    }, 5000);
-  </script>
+  }
+</script>
 </body>
 </html>
