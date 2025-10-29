@@ -1,89 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multi-User Vibration Dashboard</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibration Live Graph (Secure)</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #121212;
-      color: #eee;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    #loginForm, #dashboard {
-      margin-top: 60px;
-    }
-    input {
-      margin: 8px;
-      padding: 10px;
-      width: 250px;
-      border-radius: 5px;
-      border: none;
-    }
-    button {
-      padding: 10px 20px;
-      background-color: #03a9f4;
-      border: none;
-      border-radius: 5px;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0288d1;
-    }
-    canvas {
-      max-width: 900px;
-      margin: 20px auto;
-      display: block;
-      background: #1e1e1e;
-      border-radius: 10px;
-    }
-    #status {
-      margin: 10px;
-      font-weight: bold;
-    }
-    #logoutBtn {
-      background: #f44336;
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      display: none;
-    }
-  </style>
+<!-- Firebase + Chart.js -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body {
+    background: #0f172a;
+    color: #f1f5f9;
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+  #loginContainer, #chartContainer {
+    display: none;
+    max-width: 800px;
+    margin: auto;
+  }
+  input {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 6px;
+    border: none;
+    width: 90%;
+    font-size: 1em;
+  }
+  button {
+    padding: 10px 16px;
+    background: #38bdf8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:hover { background: #0ea5e9; }
+  canvas {
+    background: #1e293b;
+    border-radius: 12px;
+    width: 100%;
+    margin-top: 20px;
+  }
+</style>
 </head>
 <body>
-  <h2>📊 Multi-User Live Vibration Dashboard</h2>
 
-  <!-- Login Form -->
-  <div id="loginForm">
-    <h3>Login with Firebase Account</h3>
-    <input type="email" id="email" placeholder="Email"><br>
-    <input type="password" id="password" placeholder="Password"><br>
+  <h2>📊 Secure Vibration Monitoring Dashboard</h2>
+
+  <!-- Login Section -->
+  <div id="loginContainer">
+    <h3>🔐 Login Required</h3>
+    <input type="email" id="email" placeholder="Email" value="mjoydeep73@gmail.com"><br>
+    <input type="password" id="password" placeholder="Password" value="12345678"><br>
     <button onclick="login()">Login</button>
     <p id="loginStatus"></p>
   </div>
 
-  <!-- Dashboard -->
-  <div id="dashboard" style="display:none;">
-    <h3 id="userLabel"></h3>
-    <div id="status">Connecting...</div>
-    <canvas id="vibrationChart"></canvas>
+  <!-- Chart Section -->
+  <div id="chartContainer">
+    <p>✅ Logged in as <span id="userEmail"></span> 
+      <button onclick="logout()">Logout</button>
+    </p>
+    <canvas id="vibrationChart" width="800" height="400"></canvas>
   </div>
 
-  <button id="logoutBtn" onclick="logout()">Logout</button>
-
-  <script>
-    // 🔥 Firebase Config (replace with your own)
-    const firebaseConfig = {
+<script>
+  // --- Firebase Config ---
+  const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
   databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -93,95 +83,109 @@
   appId: "1:1001204540193:web:79495c246902bee191d460",
   measurementId: "G-RYDGS81ZHW"
 };
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
 
-    let chart;
-    let latestPoints = [];
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
 
-    // 🔹 Login function
-    function login() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      document.getElementById('loginStatus').innerText = "Logging in...";
-
-      auth.signInWithEmailAndPassword(email, password)
-        .then(userCredential => {
-          const user = userCredential.user;
-          document.getElementById('loginStatus').innerText = "✅ Login successful!";
-          loadDashboard(user);
-        })
-        .catch(error => {
-          document.getElementById('loginStatus').innerText = "❌ " + error.message;
-        });
-    }
-
-    // 🔹 Logout
-    function logout() {
-      auth.signOut().then(() => {
-        document.getElementById('dashboard').style.display = 'none';
-        document.getElementById('loginForm').style.display = 'block';
-        document.getElementById('logoutBtn').style.display = 'none';
+  // --- Login/Logout ---
+  function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    firebase.auth().signInWithEmailAndPassword(email, password)
+      .then(() => {
+        document.getElementById("loginStatus").textContent = "✅ Login successful!";
+      })
+      .catch(error => {
+        document.getElementById("loginStatus").textContent = "❌ " + error.message;
       });
+  }
+
+  function logout() {
+    firebase.auth().signOut();
+  }
+
+  // --- Auth state listener ---
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById("loginContainer").style.display = "none";
+      document.getElementById("chartContainer").style.display = "block";
+      document.getElementById("userEmail").textContent = user.email;
+      startRealtimeChart();
+    } else {
+      document.getElementById("loginContainer").style.display = "block";
+      document.getElementById("chartContainer").style.display = "none";
+    }
+  });
+
+  // --- Chart.js Setup ---
+  let vibrationChart;
+  const chartData = { labels: [], datasets: [{
+    label: 'Vibration (0=Normal, 1=Active)',
+    data: [],
+    borderColor: '#38bdf8',
+    borderWidth: 2,
+    pointRadius: 3,
+    backgroundColor: 'rgba(56,189,248,0.2)',
+    tension: 0.3
+  }]};
+
+  const chartOptions = {
+    animation: false,
+    scales: {
+      x: { 
+        type: 'time',
+        time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
+        ticks: { color: '#cbd5e1' }
+      },
+      y: { 
+        min: -0.2, max: 1.2,
+        ticks: { stepSize: 1, color: '#cbd5e1' }
+      }
+    },
+    plugins: {
+      legend: { labels: { color: '#f1f5f9' } }
+    }
+  };
+
+  // --- Realtime Chart Setup ---
+  const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+
+  function startRealtimeChart() {
+    if (!vibrationChart) {
+      const ctx = document.getElementById('vibrationChart').getContext('2d');
+      vibrationChart = new Chart(ctx, { type: 'line', data: chartData, options: chartOptions });
     }
 
-    // 🔹 Load user dashboard
-    function loadDashboard(user) {
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
-      document.getElementById('logoutBtn').style.display = 'block';
-      document.getElementById('userLabel').innerText = "Logged in as: " + user.email;
+    const ref = db.ref("vibration/latest");
+    ref.on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (data && typeof data.vibration !== 'undefined') {
+        const vib = Number(data.vibration);
+        const now = new Date();
 
-      // Reference to user's vibration data
-      const ref = db.ref("users/" + user.uid + "/vibration");
+        chartData.labels.push(now);
+        chartData.datasets[0].data.push(vib);
 
-      // Create chart
-      const ctx = document.getElementById("vibrationChart").getContext("2d");
-      chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: [],
-          datasets: [{
-            label: "Vibration",
-            borderColor: "#03a9f4",
-            backgroundColor: "rgba(3,169,244,0.3)",
-            data: [],
-            tension: 0.2
-          }]
-        },
-        options: {
-          responsive: true,
-          animation: false,
-          scales: {
-            x: { title: { display: true, text: "Local Time (from ESP)" }, ticks: { color: "#ccc" } },
-            y: { title: { display: true, text: "Vibration" }, ticks: { color: "#ccc" } }
-          },
-          plugins: { legend: { labels: { color: "#fff" } } }
+        // Keep only last 30 minutes
+        while (chartData.labels.length && (now - chartData.labels[0]) > WINDOW_MS) {
+          chartData.labels.shift();
+          chartData.datasets[0].data.shift();
         }
-      });
 
-      // Listen to real-time updates
-      ref.on("child_added", (snap) => {
-        const data = snap.val();
-        if (!data.local_time || data.vibration === undefined) return;
+        // Dynamic color: red when vibration=1, blue when normal
+        if (vib === 1) {
+          chartData.datasets[0].borderColor = '#f87171';
+          chartData.datasets[0].backgroundColor = 'rgba(248,113,113,0.2)';
+        } else {
+          chartData.datasets[0].borderColor = '#38bdf8';
+          chartData.datasets[0].backgroundColor = 'rgba(56,189,248,0.2)';
+        }
 
-        latestPoints.push({ time: data.local_time, value: data.vibration });
-        if (latestPoints.length > 1800) latestPoints.shift(); // last 30 min
-
-        chart.data.labels = latestPoints.map(p => p.time);
-        chart.data.datasets[0].data = latestPoints.map(p => p.value);
-        chart.update("none");
-
-        document.getElementById("status").textContent = "✅ Live updating...";
-      });
-    }
-
-    // 🔹 Keep user logged in
-    auth.onAuthStateChanged(user => {
-      if (user) loadDashboard(user);
+        vibrationChart.update();
+      }
     });
-  </script>
+  }
+</script>
 </body>
 </html>
