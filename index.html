@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vibration Live Graph (with Auth - Fixed)</title>
+  <title>Vibration Live Graph</title>
 
   <!-- Firebase + Chart.js -->
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
@@ -19,26 +18,6 @@
       font-family: "Segoe UI", sans-serif;
       text-align: center;
       padding: 20px;
-    }
-    #loginBox {
-      background: #1e293b;
-      padding: 20px;
-      border-radius: 12px;
-      display: inline-block;
-    }
-    input {
-      margin: 5px;
-      padding: 8px;
-      border-radius: 8px;
-      border: none;
-    }
-    button {
-      padding: 8px 16px;
-      border-radius: 8px;
-      background: #38bdf8;
-      color: #fff;
-      border: none;
-      cursor: pointer;
     }
     canvas {
       background: #1e293b;
@@ -61,17 +40,8 @@
 <body>
   <h2>📈 Vibration Live Graph (Last 30 Minutes)</h2>
 
-  <!-- Login Form -->
-  <div id="loginBox">
-    <h3>Sign in to Firebase</h3>
-    <input type="email" id="email" placeholder="Email" value="mjoydeep73@gmail.com"><br>
-    <input type="password" id="password" placeholder="Password" value="12345678"><br>
-    <button onclick="login()">Login</button>
-    <p id="loginStatus"></p>
-  </div>
-
   <!-- Graph Box -->
-  <div id="graphBox" style="display:none;">
+  <div id="graphBox">
     <div id="alertBox">⚠️ Vibration Detected!</div>
     <canvas id="vibrationChart" width="800" height="400"></canvas>
   </div>
@@ -84,32 +54,11 @@
   };
   firebase.initializeApp(firebaseConfig);
 
-  const auth = firebase.auth();
   const db = firebase.database();
 
-  const loginBox = document.getElementById("loginBox");
-  const graphBox = document.getElementById("graphBox");
   const alertBox = document.getElementById("alertBox");
-  const statusText = document.getElementById("loginStatus");
 
   let vibrationChart = null; // will hold chart instance
-
-  // --- Login Function ---
-  function login() {
-    const email = document.getElementById("email").value;
-    const pass = document.getElementById("password").value;
-
-    auth.signInWithEmailAndPassword(email, pass)
-      .then(() => {
-        statusText.textContent = "✅ Login successful!";
-        loginBox.style.display = "none";
-        graphBox.style.display = "block";
-        startRealtimeChart();
-      })
-      .catch((err) => {
-        statusText.textContent = "❌ " + err.message;
-      });
-  }
 
   // --- Start Real-Time Chart Function ---
   function startRealtimeChart() {
@@ -184,6 +133,9 @@
       }
     });
   }
+
+  // Start the chart once the page loads
+  window.onload = startRealtimeChart;
 </script>
 </body>
 </html>
