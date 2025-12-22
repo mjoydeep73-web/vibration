@@ -2,29 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Professional Vibration Monitoring Dashboard</title>
+  <title>Real-time FFT Graph</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
-    h1, h2 { text-align: center; }
-    canvas { background: #fff; border-radius: 10px; margin-bottom: 50px; box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px;
+    }
+    canvas {
+      max-width: 800px;
+      width: 100%;
+    }
   </style>
 </head>
 <body>
-  <h1>Vibration Monitoring Dashboard</h1>
-
-  <h2>Live Peak FFT Frequency</h2>
-  <canvas id="fftLineChart" width="900" height="300"></canvas>
-
-  <h2>Live FFT Magnitude Spectrum</h2>
-  <canvas id="fftBarChart" width="900" height="400"></canvas>
+  <h2>Real-time FFT Frequency</h2>
+  <canvas id="fftChart"></canvas>
 
   <script>
-    // ---------- Firebase config ----------
-const firebaseConfig = {
+    // ---------------- Firebase Configuration ----------------
+    const firebaseConfig = {
   apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   authDomain: "vibrationstatus.firebaseapp.com",
   databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -35,127 +37,72 @@ const firebaseConfig = {
   measurementId: "G-RYDGS81ZHW"
 };
 
-    const app = firebase.initializeApp(firebaseConfig);
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ---------- Dashboard settings ----------
-    const SAMPLES = 64;
-    const SAMPLING_FREQ = 200;
-    const MAX_POINTS = 50;
-    const PEAK_THRESHOLD = 20; // Hz, example warning threshold
-
-    // ---------- Line Chart: Peak FFT Frequency ----------
-    const lineCtx = document.getElementById('fftLineChart').getContext('2d');
-    const lineData = {
-      labels: [],
-      datasets: [{
-        label: 'Peak FFT Frequency (Hz)',
-        data: [],
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        tension: 0.3,
-        fill: true,
-        pointRadius: 3
-      }]
-    };
-
-    const lineConfig = {
+    // ---------------- Chart.js Setup ----------------
+    const ctx = document.getElementById('fftChart').getContext('2d');
+    const fftChart = new Chart(ctx, {
       type: 'line',
-      data: lineData,
+      data: {
+        labels: [], // timestamps
+        datasets: [{
+          label: 'FFT Frequency (Hz)',
+          data: [],
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.3
+        }]
+      },
       options: {
         responsive: true,
-        animation: false,
         scales: {
-          x: { type: 'time', time: { tooltipFormat: 'HH:mm:ss', unit: 'second', displayFormats: { second: 'HH:mm:ss' } }, title: { display: true, text: 'Time' } },
-          y: { title: { display: true, text: 'Frequency (Hz)' }, suggestedMin: 0, suggestedMax: 50 }
-        },
-        plugins: {
-          legend: { display: true }
+          x: {
+            type: 'time',
+            time: {
+              parser: 'HH:mm:ss',
+              tooltipFormat: 'HH:mm:ss',
+              unit: 'second',
+              displayFormats: {
+                second: 'HH:mm:ss'
+              }
+            },
+            title: {
+              display: true,
+              text: 'Time'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Frequency (Hz)'
+            }
+          }
         }
       }
-    };
+    });
 
-    const fftLineChart = new Chart(lineCtx, lineConfig);
+    // ---------------- Firebase Real-time Listener ----------------
+    const fftRef = db.ref('live/fft_frequency_hz');
 
-    // ---------- Bar Chart: FFT Magnitude Spectrum ----------
-    const barCtx = document.getElementById('fftBarChart').getContext('2d');
-    const freqs = Array.from({length: SAMPLES/2}, (_, i) => (i * SAMPLING_FREQ / SAMPLES).toFixed(2));
-
-    const barData = {
-      labels: freqs,
-      datasets: [{
-        label: 'FFT Magnitude',
-        data: Array(SAMPLES/2).fill(0),
-        backgroundColor: Array(SAMPLES/2).fill('rgba(75, 192, 192, 0.5)')
-      }]
-    };
-
-    const barConfig = {
-      type: 'bar',
-      data: barData,
-      options: {
-        responsive: true,
-        animation: false,
-        scales: {
-          x: { title: { display: true, text: 'Frequency (Hz)' } },
-          y: { title: { display: true, text: 'Magnitude' }, suggestedMin: 0 }
-        }
-      }
-    };
-
-    const fftBarChart = new Chart(barCtx, barConfig);
-
-    // ---------- Firebase Listeners ----------
-    const peakFreqRef = db.ref('live/fft_frequency_hz');
-    peakFreqRef.on('value', (snapshot) => {
-      const freq = snapshot.val();
-      if (freq === null) return;
-
+    fftRef.on('value', (snapshot) => {
+      const frequency = snapshot.val();
       const now = new Date();
-      lineData.labels.push(now);
-      lineData.datasets[0].data.push(freq);
+      const timeLabel = now.toLocaleTimeString();
 
-      // Limit points
-      if (lineData.labels.length > MAX_POINTS) {
-        lineData.labels.shift();
-        lineData.datasets[0].data.shift();
+      // Add new data
+      fftChart.data.labels.push(timeLabel);
+      fftChart.data.datasets[0].data.push(frequency);
+
+      // Keep only last 50 points
+      if (fftChart.data.labels.length > 50) {
+        fftChart.data.labels.shift();
+        fftChart.data.datasets[0].data.shift();
       }
 
-      // Warning threshold color
-      if (freq > PEAK_THRESHOLD) {
-        lineData.datasets[0].borderColor = 'red';
-        lineData.datasets[0].backgroundColor = 'rgba(255, 0, 0, 0.2)';
-      } else {
-        lineData.datasets[0].borderColor = 'rgb(75, 192, 192)';
-        lineData.datasets[0].backgroundColor = 'rgba(75, 192, 192, 0.2)';
-      }
-
-      fftLineChart.update('none');
+      fftChart.update();
     });
-
-    const fftMagRef = db.ref('live/fft_magnitude');
-    fftMagRef.on('value', (snapshot) => {
-      const magArray = snapshot.val();
-      if (!magArray || magArray.length !== SAMPLES/2) return;
-
-      // Find peak index
-      let peakIndex = 0;
-      let maxVal = magArray[0];
-      for (let i = 1; i < magArray.length; i++) {
-        if (magArray[i] > maxVal) { maxVal = magArray[i]; peakIndex = i; }
-      }
-
-      // Auto-scale Y-axis
-      const yMax = Math.ceil(maxVal * 1.2);
-      fftBarChart.options.scales.y.max = yMax;
-
-      // Update bar colors: peak highlighted
-      barData.datasets[0].backgroundColor = magArray.map((v, i) => i === peakIndex ? 'rgba(255, 0, 0, 0.7)' : 'rgba(75, 192, 192, 0.5)');
-
-      barData.datasets[0].data = magArray;
-      fftBarChart.update('none');
-    });
-
   </script>
 </body>
 </html>
