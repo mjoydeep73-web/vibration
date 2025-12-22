@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Real-time FFT Graph</title>
+  <title>Real-time FFT Graph with Local Time</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -21,21 +21,21 @@
   </style>
 </head>
 <body>
-  <h2>Real-time FFT Frequency</h2>
+  <h2>Real-time FFT Frequency with Local Time</h2>
   <canvas id="fftChart"></canvas>
 
   <script>
     // ---------------- Firebase Configuration ----------------
     const firebaseConfig = {
-  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  authDomain: "vibrationstatus.firebaseapp.com",
-  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "vibrationstatus",
-  storageBucket: "vibrationstatus.firebasestorage.app",
-  messagingSenderId: "1001204540193",
-  appId: "1:1001204540193:web:79495c246902bee191d460",
-  measurementId: "G-RYDGS81ZHW"
-};
+      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+      authDomain: "vibrationstatus.firebaseapp.com",
+      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "vibrationstatus",
+      storageBucket: "vibrationstatus.firebasestorage.app",
+      messagingSenderId: "1001204540193",
+      appId: "1:1001204540193:web:79495c246902bee191d460",
+      measurementId: "G-RYDGS81ZHW"
+    };
 
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
@@ -46,7 +46,7 @@
     const fftChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: [], // timestamps
+        labels: [], // timestamps (local system time)
         datasets: [{
           label: 'FFT Frequency (Hz)',
           data: [],
@@ -61,8 +61,6 @@
           x: {
             type: 'time',
             time: {
-              parser: 'HH:mm:ss',
-              tooltipFormat: 'HH:mm:ss',
               unit: 'second',
               displayFormats: {
                 second: 'HH:mm:ss'
@@ -88,20 +86,25 @@
 
     fftRef.on('value', (snapshot) => {
       const frequency = snapshot.val();
-      const now = new Date();
-      const timeLabel = now.toLocaleTimeString();
 
-      // Add new data
-      fftChart.data.labels.push(timeLabel);
-      fftChart.data.datasets[0].data.push(frequency);
+      if (frequency !== null && !isNaN(frequency)) {
+        const now = new Date();  // Get the current time based on local system timezone
+        const timeLabel = now.getTime();  // Use timestamp (milliseconds)
 
-      // Keep only last 50 points
-      if (fftChart.data.labels.length > 50) {
-        fftChart.data.labels.shift();
-        fftChart.data.datasets[0].data.shift();
+        // Add new data to chart
+        fftChart.data.labels.push(timeLabel);
+        fftChart.data.datasets[0].data.push(frequency);
+
+        // Keep only the last 50 points (optional)
+        if (fftChart.data.labels.length > 50) {
+          fftChart.data.labels.shift();
+          fftChart.data.datasets[0].data.shift();
+        }
+
+        fftChart.update();
+      } else {
+        console.log("Invalid frequency value:", frequency);
       }
-
-      fftChart.update();
     });
   </script>
 </body>
