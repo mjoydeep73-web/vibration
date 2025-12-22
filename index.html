@@ -2,110 +2,188 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Real-time FFT Graph with Local Time</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibration Live Graph (with Auth - Fixed)</title>
+
+  <!-- Firebase + Chart.js -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
   <style>
     body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 20px;
+      background: #0f172a;
+      color: #f1f5f9;
+      font-family: "Segoe UI", sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #loginBox {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      display: inline-block;
+    }
+    input {
+      margin: 5px;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: #38bdf8;
+      color: #fff;
+      border: none;
+      cursor: pointer;
     }
     canvas {
+      background: #1e293b;
+      border-radius: 12px;
       max-width: 800px;
-      width: 100%;
+      margin-top: 20px;
+    }
+    #alertBox {
+      display: none;
+      background: #ef4444;
+      color: white;
+      padding: 10px;
+      margin: 10px auto;
+      border-radius: 8px;
+      width: fit-content;
     }
   </style>
 </head>
-<body>
-  <h2>Real-time FFT Frequency with Local Time</h2>
-  <canvas id="fftChart"></canvas>
 
-  <script>
-    // ---------------- Firebase Configuration ----------------
-    const firebaseConfig = {
-      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-      authDomain: "vibrationstatus.firebaseapp.com",
-      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "vibrationstatus",
-      storageBucket: "vibrationstatus.firebasestorage.app",
-      messagingSenderId: "1001204540193",
-      appId: "1:1001204540193:web:79495c246902bee191d460",
-      measurementId: "G-RYDGS81ZHW"
+<body>
+  <h2>📈 Vibration Live Graph (Last 30 Minutes)</h2>
+
+  <!-- Login Form -->
+  <div id="loginBox">
+    <h3>Sign in to Firebase</h3>
+    <input type="email" id="email" placeholder="Email" value="mjoydeep73@gmail.com"><br>
+    <input type="password" id="password" placeholder="Password" value="12345678"><br>
+    <button onclick="login()">Login</button>
+    <p id="loginStatus"></p>
+  </div>
+
+  <!-- Graph Box -->
+  <div id="graphBox" style="display:none;">
+    <div id="alertBox">⚠️ Vibration Detected!</div>
+    <canvas id="vibrationChart" width="800" height="400"></canvas>
+  </div>
+
+<script>
+  // --- Firebase Config ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+    databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  const loginBox = document.getElementById("loginBox");
+  const graphBox = document.getElementById("graphBox");
+  const alertBox = document.getElementById("alertBox");
+  const statusText = document.getElementById("loginStatus");
+
+  let vibrationChart = null; // will hold chart instance
+
+  // --- Login Function ---
+  function login() {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+
+    auth.signInWithEmailAndPassword(email, pass)
+      .then(() => {
+        statusText.textContent = "✅ Login successful!";
+        loginBox.style.display = "none";
+        graphBox.style.display = "block";
+        startRealtimeChart();
+      })
+      .catch((err) => {
+        statusText.textContent = "❌ " + err.message;
+      });
+  }
+
+  // --- Start Real-Time Chart Function ---
+  function startRealtimeChart() {
+    // Destroy previous chart instance if exists
+    if (vibrationChart) {
+      vibrationChart.destroy();
+      console.log("Destroyed old chart instance");
+    }
+
+    // Chart.js setup
+    const ctx = document.getElementById('vibrationChart').getContext('2d');
+    const chartData = {
+      labels: [],
+      datasets: [{
+        label: 'Frequency (Hz)',
+        data: [],
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,0.2)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3
+      }]
     };
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // ---------------- Chart.js Setup ----------------
-    const ctx = document.getElementById('fftChart').getContext('2d');
-    const fftChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [], // timestamps (local system time)
-        datasets: [{
-          label: 'FFT Frequency (Hz)',
-          data: [],
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.3
-        }]
+    const chartOptions = {
+      animation: false,
+      scales: {
+        x: { 
+          type: 'time',
+          time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
+          ticks: { color: '#cbd5e1' }
+        },
+        y: { 
+          min: -100, max: 600,  // Adjust the range for frequency from -100 to 600
+          ticks: { stepSize: 100, color: '#cbd5e1' }
+        }
       },
-      options: {
-        responsive: true,
-        scales: {
-          x: {
-            type: 'time',
-            time: {
-              unit: 'second',
-              displayFormats: {
-                second: 'HH:mm:ss'
-              }
-            },
-            title: {
-              display: true,
-              text: 'Time'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Frequency (Hz)'
-            }
-          }
-        }
+      plugins: {
+        legend: { labels: { color: '#f1f5f9' } }
+      }
+    };
+
+    // Create chart safely
+    vibrationChart = new Chart(ctx, { type: 'line', data: chartData, options: chartOptions });
+
+    const WINDOW_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+
+    // Function to update chart with new data
+    const updateChart = (freqValue) => {
+      const now = new Date();  // Get local system time
+      chartData.labels.push(now);
+      chartData.datasets[0].data.push(freqValue);
+
+      // Keep last 30 minutes of data
+      while (chartData.labels.length && (now - chartData.labels[0]) > WINDOW_MS) {
+        chartData.labels.shift();
+        chartData.datasets[0].data.shift();
+      }
+
+      // Update chart with frequency value
+      vibrationChart.update();
+    };
+
+    // Firebase listener to update chart in real-time
+    const ref = db.ref("live/fft_frequency_hz");  // Firebase path for frequency data
+    ref.off(); // prevent multiple subscriptions
+    ref.on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (data && typeof data === 'number') {
+        console.log("Firebase update:", data);
+        updateChart(data);  // Update the chart with the frequency value from Firebase
       }
     });
-
-    // ---------------- Firebase Real-time Listener ----------------
-    const fftRef = db.ref('live/fft_frequency_hz');
-
-    fftRef.on('value', (snapshot) => {
-      const frequency = snapshot.val();
-
-      if (frequency !== null && !isNaN(frequency)) {
-        const now = new Date();  // Get the current time based on local system timezone
-        const timeLabel = now.getTime();  // Use timestamp (milliseconds)
-
-        // Add new data to chart
-        fftChart.data.labels.push(timeLabel);
-        fftChart.data.datasets[0].data.push(frequency);
-
-        // Keep only the last 50 points (optional)
-        if (fftChart.data.labels.length > 50) {
-          fftChart.data.labels.shift();
-          fftChart.data.datasets[0].data.shift();
-        }
-
-        fftChart.update();
-      } else {
-        console.log("Invalid frequency value:", frequency);
-      }
-    });
-  </script>
+  }
+</script>
 </body>
 </html>
