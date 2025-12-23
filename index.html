@@ -79,12 +79,16 @@
         backgroundColor: 'rgba(56,189,248,0.2)',
         borderWidth: 2,
         pointRadius: 3,
-        tension: 0.3
+        tension: 0.4,  // Smooth the line with tension
+        fill: true,   // Fill the area under the line for smoothness
       }]
     };
 
     const chartOptions = {
-      animation: false,
+      animation: {
+        duration: 500,  // Animation duration to make it smoother
+        easing: 'easeOutQuart',  // Smooth easing for the animation
+      },
       scales: {
         x: { 
           type: 'time',
