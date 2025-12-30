@@ -47,7 +47,6 @@
   </div>
 
 <script>
-  // --- Firebase Config ---
   const firebaseConfig = {
     apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
     databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -55,90 +54,118 @@
   firebase.initializeApp(firebaseConfig);
 
   const db = firebase.database();
-
   const alertBox = document.getElementById("alertBox");
 
-  let vibrationChart = null; // will hold chart instance
+  const THRESHOLD = 70;
+  let vibrationChart;
 
-  // --- Start Real-Time Chart Function ---
-  function startRealtimeChart() {
-    // Destroy previous chart instance if exists
-    if (vibrationChart) {
-      vibrationChart.destroy();
-      console.log("Destroyed old chart instance");
+  // 🔥 Background zone plugin
+  const zonePlugin = {
+    id: 'zoneBackground',
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+
+      const y = scales.y;
+      const yThreshold = y.getPixelForValue(THRESHOLD);
+
+      ctx.save();
+
+      // Green zone (0–70)
+      ctx.fillStyle = 'rgba(34,197,94,0.15)';
+      ctx.fillRect(chartArea.left, yThreshold,
+                   chartArea.right - chartArea.left,
+                   chartArea.bottom - yThreshold);
+
+      // Yellow zone (70–100)
+      ctx.fillStyle = 'rgba(253,224,71,0.25)';
+      ctx.fillRect(chartArea.left, chartArea.top,
+                   chartArea.right - chartArea.left,
+                   yThreshold - chartArea.top);
+
+      ctx.restore();
     }
+  };
 
-    // Chart.js setup
-    const ctx = document.getElementById('vibrationChart').getContext('2d');
-    const chartData = {
+  function startRealtimeChart() {
+    if (vibrationChart) vibrationChart.destroy();
+
+    const ctx = document.getElementById("vibrationChart").getContext("2d");
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(253,224,71,0.45)'); // yellow
+    gradient.addColorStop(THRESHOLD / 100, 'rgba(34,197,94,0.35)'); // green
+    gradient.addColorStop(1, 'rgba(34,197,94,0.15)');
+
+    const data = {
       labels: [],
       datasets: [{
-        label: 'Frequency (Hz)',
+        label: "Frequency (Hz)",
         data: [],
         borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56,189,248,0.2)',
+        backgroundColor: gradient,
         borderWidth: 2,
-        pointRadius: 3,
-        tension: 0.4,  // Smooth the line with tension
-        fill: true,   // Fill the area under the line for smoothness
+        tension: 0.3,
+        pointRadius: 0,
+        fill: true
       }]
     };
 
-    const chartOptions = {
-      animation: {
-        duration: 500,  // Animation duration to make it smoother
-        easing: 'easeOutQuart',  // Smooth easing for the animation
-      },
-      scales: {
-        x: { 
-          type: 'time',
-          time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
-          ticks: { color: '#cbd5e1' }
-        },
-        y: { 
-          min: -100, max: 600,  // Adjust the range for frequency from -100 to 600
-          ticks: { stepSize: 100, color: '#cbd5e1' }
+    vibrationChart = new Chart(ctx, {
+      type: "line",
+      data,
+      plugins: [zonePlugin],
+      options: {
+        animation: false,
+        scales: {
+          x: {
+            type: "time",
+            time: { tooltipFormat: "HH:mm:ss" }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 10 }
+          }
         }
-      },
-      plugins: {
-        legend: { labels: { color: '#f1f5f9' } }
       }
-    };
+    });
 
-    // Create chart safely
-    vibrationChart = new Chart(ctx, { type: 'line', data: chartData, options: chartOptions });
+    const WINDOW_MS = 30 * 60 * 1000;
 
-    const WINDOW_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+    function updateChart(value) {
+      const now = new Date();
 
-    // Function to update chart with new data
-    const updateChart = (freqValue) => {
-      const now = new Date();  // Get local system time
-      chartData.labels.push(now);
-      chartData.datasets[0].data.push(freqValue);
+      data.labels.push(now);
+      data.datasets[0].data.push(value);
 
-      // Keep last 30 minutes of data
-      while (chartData.labels.length && (now - chartData.labels[0]) > WINDOW_MS) {
-        chartData.labels.shift();
-        chartData.datasets[0].data.shift();
+      while (now - data.labels[0] > WINDOW_MS) {
+        data.labels.shift();
+        data.datasets[0].data.shift();
       }
 
-      // Update chart with frequency value
-      vibrationChart.update();
-    };
-
-    // Firebase listener to update chart in real-time
-    const ref = db.ref("live/fft_frequency_hz");  // Firebase path for frequency data
-    ref.off(); // prevent multiple subscriptions
-    ref.on("value", (snapshot) => {
-      const data = snapshot.val();
-      if (data && typeof data === 'number') {
-        console.log("Firebase update:", data);
-        updateChart(data);  // Update the chart with the frequency value from Firebase
+      // 🚨 ALERT + COLOR LOGIC
+      if (value >= THRESHOLD) {
+        alertBox.style.display = "block";
+        alertBox.classList.add("blink");
+        data.datasets[0].borderColor = "#000000";
+      } else {
+        alertBox.style.display = "none";
+        alertBox.classList.remove("blink");
+        data.datasets[0].borderColor = "#38bdf8";
       }
+
+      vibrationChart.update("none");
+    }
+
+    const ref = db.ref("live/fft_frequency_hz");
+    ref.off();
+    ref.on("value", snap => {
+      const val = snap.val();
+      if (typeof val === "number") updateChart(val);
     });
   }
 
-  // Start the chart once the page loads
   window.onload = startRealtimeChart;
 </script>
 </body>
