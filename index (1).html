@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibration Live Graph</title>
+
+  <!-- Firebase + Chart.js -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+  <style>
+  body {
+    background: #0f172a;
+    color: #f1f5f9;
+    font-family: "Segoe UI", sans-serif;
+    margin: 0;
+    padding: 12px;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+  }
+
+  #graphBox {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  canvas {
+    background: #1e293b;
+    border-radius: 12px;
+    width: 100% !important;
+    height: auto !important;
+    touch-action: none; /* prevent scroll while interacting */
+  }
+
+  #alertBox {
+    display: none;
+    background: #ef4444;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin: 6px auto;
+    width: fit-content;
+  }
+
+  @media (max-width: 768px) {
+    canvas {
+      height: 260px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    h2 {
+      font-size: 1rem;
+    }
+    canvas {
+      height: 220px !important;
+    }
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+  .blink {
+    animation: blink 1s infinite;
+  }
+</style>
+</head>
+
+<body>
+  <h2>📈 Vibration Live Graph (Last 30 Minutes)</h2>
+
+  <!-- Graph Box -->
+  <div id="graphBox">
+    <div id="alertBox">⚠️ Vibration Detected!</div>
+    <canvas id="vibrationChart" width="800" height="400"></canvas>
+  </div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+    databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  const db = firebase.database();
+  const alertBox = document.getElementById("alertBox");
+
+  const THRESHOLD = 70;
+  let vibrationChart;
+
+  // 🔥 Background zone plugin
+  const zonePlugin = {
+    id: 'zoneBackground',
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+
+      const y = scales.y;
+      const yThreshold = y.getPixelForValue(THRESHOLD);
+
+      ctx.save();
+
+      // Green zone (0–70)
+      ctx.fillStyle = 'rgba(34,197,94,0.15)';
+      ctx.fillRect(chartArea.left, yThreshold,
+                   chartArea.right - chartArea.left,
+                   chartArea.bottom - yThreshold);
+
+      // Yellow zone (70–100)
+      ctx.fillStyle = 'rgba(253,224,71,0.25)';
+      ctx.fillRect(chartArea.left, chartArea.top,
+                   chartArea.right - chartArea.left,
+                   yThreshold - chartArea.top);
+
+      ctx.restore();
+    }
+  };
+
+  function startRealtimeChart() {
+    if (vibrationChart) vibrationChart.destroy();
+
+    const ctx = document.getElementById("vibrationChart").getContext("2d");
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(253,224,71,0.45)'); // yellow
+    gradient.addColorStop(THRESHOLD / 100, 'rgba(34,197,94,0.35)'); // green
+    gradient.addColorStop(1, 'rgba(34,197,94,0.15)');
+
+    const data = {
+      labels: [],
+      datasets: [{
+        label: "Frequency (Hz)",
+        data: [],
+        borderColor: '#38bdf8',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        tension: 0.3,
+        pointRadius: 0,
+        fill: true
+      }]
+    };
+
+    vibrationChart = new Chart(ctx, {
+      type: "line",
+      data,
+      plugins: [zonePlugin],
+      options: {
+      responsive: true,
+      maintainAspectRatio: false, // 🔥 required for mobile
+      animation: false,
+      interaction: {
+      mode: 'nearest',
+      intersect: false
+  },
+      plugins: {
+      legend: {
+      labels: {
+        boxWidth: 12,
+        font: { size: 12 }
+      }
+    },
+    tooltip: {
+      enabled: true,
+      titleFont: { size: 12 },
+      bodyFont: { size: 14 }
+    }
+  },
+  scales: {
+    x: {
+      ticks: {
+        maxTicksLimit: 5, // fewer labels on mobile
+        font: { size: 10 }
+      }
+    },
+    y: {
+      min: 0,
+      max: 100,
+      ticks: {
+        stepSize: 10,
+        font: { size: 10 }
+      }
+    }
+  }
+}
+
+    });
+
+    const WINDOW_MS = 30 * 60 * 1000;
+
+    function updateChart(value) {
+      const now = new Date();
+
+      data.labels.push(now);
+      data.datasets[0].data.push(value);
+
+      while (now - data.labels[0] > WINDOW_MS) {
+        data.labels.shift();
+        data.datasets[0].data.shift();
+      }
+
+      // 🚨 ALERT + COLOR LOGIC
+      if (value >= THRESHOLD) {
+        alertBox.style.display = "block";
+        alertBox.classList.add("blink");
+        data.datasets[0].borderColor = "#000000";
+      } else {
+        alertBox.style.display = "none";
+        alertBox.classList.remove("blink");
+        data.datasets[0].borderColor = "#38bdf8";
+      }
+
+      vibrationChart.update("none");
+    }
+
+    const ref = db.ref("live/fft_frequency_hz");
+    ref.off();
+    ref.on("value", snap => {
+      const val = snap.val();
+      if (typeof val === "number") updateChart(val);
+    });
+  }
+
+  window.onload = startRealtimeChart;
+</script>
+</body>
+</html>
