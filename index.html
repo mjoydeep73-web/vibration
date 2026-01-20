@@ -68,7 +68,7 @@ button:hover { background: #1d4ed8; }
 
 <body>
 
-<h2>📈 Velocity RMS Live Monitor (ISO 10816)</h2>
+<h2>📈 Vibration RMS Live Monitor </h2>
 
 <div id="maxBox">
 Max Velocity RMS: <span id="maxValue">0</span> mm/s<br>
@@ -80,15 +80,17 @@ Max Velocity RMS: <span id="maxValue">0</span> mm/s<br>
 <canvas id="velChart" width="900" height="420"></canvas>
 
 <script>
-// 🔥 Firebase Config
-  const firebaseConfig = {
-    apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-    databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
-  };
+/* 🔥 Firebase Config */
+const firebaseConfig = {
+  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
+};
 
+/* ✅ INITIALIZE FIREBASE (YOU MISSED THIS) */
+firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ISO 10816 Limits
+/* ISO 10816 Limits */
 const ZONE_B = 20;
 const ZONE_C = 50;
 const ZONE_D = 100;
@@ -100,8 +102,10 @@ let alertActive = false;
 const alertBox = document.getElementById("alertBox");
 const maxValueEl = document.getElementById("maxValue");
 
-// 🔊 Buzzer
+/* 🔊 Buzzer */
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+document.body.addEventListener("click", () => audioCtx.resume(), { once: true });
+
 function playBuzzer() {
   const osc = audioCtx.createOscillator();
   osc.frequency.value = 1200;
@@ -110,39 +114,9 @@ function playBuzzer() {
   setTimeout(() => osc.stop(), 300);
 }
 
-// 🎨 ISO Zone Background Plugin
-const isoZonePlugin = {
-  id: "isoZones",
-  beforeDraw(chart) {
-    const { ctx, chartArea, scales } = chart;
-    if (!chartArea) return;
-
-    const y = scales.y;
-
-    const yA = y.getPixelForValue(ZONE_B);
-    const yB = y.getPixelForValue(ZONE_C);
-    const yC = y.getPixelForValue(ZONE_D);
-
-    ctx.save();
-
-    ctx.fillStyle = "rgba(34,197,94,0.18)"; // Green
-    ctx.fillRect(chartArea.left, yA, chartArea.right-chartArea.left, chartArea.bottom-yA);
-
-    ctx.fillStyle = "rgba(253,224,71,0.25)"; // Yellow
-    ctx.fillRect(chartArea.left, yB, chartArea.right-chartArea.left, yA-yB);
-
-    ctx.fillStyle = "rgba(251,146,60,0.25)"; // Orange
-    ctx.fillRect(chartArea.left, yC, chartArea.right-chartArea.left, yB-yC);
-
-    ctx.fillStyle = "rgba(239,68,68,0.30)"; // Red
-    ctx.fillRect(chartArea.left, chartArea.top, chartArea.right-chartArea.left, yC-chartArea.top);
-
-    ctx.restore();
-  }
-};
-
-// 📊 Chart
+/* 📊 Chart */
 const ctx = document.getElementById("velChart").getContext("2d");
+
 const chartData = {
   labels: [],
   datasets: [{
@@ -160,17 +134,20 @@ const chartData = {
 const velChart = new Chart(ctx, {
   type: "line",
   data: chartData,
-  plugins: [isoZonePlugin],
   options: {
     animation: false,
     scales: {
       x: { type: "time" },
-      y: { min: 0, max: 12, title: { display: true, text: "mm/s" } }
+      y: {
+        min: 0,
+        max: 120,
+        title: { display: true, text: "mm/s" }
+      }
     }
   }
 });
 
-// 🔄 Update Function
+/* 🔄 Update Function */
 function updateChart(val) {
   const now = new Date();
   chartData.labels.push(now);
@@ -203,13 +180,14 @@ function updateChart(val) {
   velChart.update("none");
 }
 
-// 🔥 Firebase Listener
+/* 🔥 Firebase Listener */
 db.ref("vibration/velocity_rms").on("value", snap => {
   const v = snap.val();
+  console.log("Firebase value:", v); // DEBUG
   if (typeof v === "number") updateChart(v);
 });
 
-// 🔁 Reset
+/* 🔁 Reset */
 function resetMax() {
   maxVel = 0;
   maxValueEl.textContent = "0";
