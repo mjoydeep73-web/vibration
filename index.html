@@ -1,16 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Velocity RMS Monitoring</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Velocity RMS Monitor</title>
+
+<!-- Firebase + Chart.js -->
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<style>
+body {
+  background: #0f172a;
+  color: #e5e7eb;
+  font-family: "Segoe UI", sans-serif;
+  text-align: center;
+  padding: 20px;
+}
+
+canvas {
+  background: #020617;
+  border-radius: 14px;
+  max-width: 900px;
+  margin-top: 20px;
+}
+
+#alertBox {
+  display: none;
+  background: #dc2626;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  margin: 10px auto;
+}
+
+#maxBox {
+  margin: 12px auto;
+  padding: 12px 22px;
+  background: #020617;
+  border: 2px solid #38bdf8;
+  border-radius: 12px;
+  width: fit-content;
+  font-size: 18px;
+  box-shadow: 0 0 14px rgba(56,189,248,0.4);
+}
+
+#maxValue {
+  color: #fde047;
+  font-size: 22px;
+}
+
+button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #2563eb;
+  border: none;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+</style>
 </head>
+
 <body>
 
-<h2>Velocity RMS (mm/s) – ISO 10816</h2>
-<canvas id="chart"></canvas>
+<h2>📈 Velocity RMS Live Monitor (ISO 10816)</h2>
+
+<div id="maxBox">
+Max Velocity RMS: <span id="maxValue">0</span> mm/s<br>
+<button onclick="resetMax()">🔁 Reset Max</button>
+</div>
+
+<div id="alertBox">🚨 ISO ZONE D — SEVERE VIBRATION</div>
+
+<canvas id="velChart" width="900" height="420"></canvas>
 
 <script>
 // 🔥 Firebase Config
@@ -18,57 +85,135 @@
     apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
     databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
   };
-firebase.initializeApp(firebaseConfig);
+
 const db = firebase.database();
 
-const ctx = document.getElementById('chart');
+// ISO 10816 Limits
+const ZONE_B = 20;
+const ZONE_C = 50;
+const ZONE_D = 100;
 
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [{
-      label: 'Velocity RMS (mm/s)',
-      data: [],
-      borderWidth: 2,
-      fill: false
-    }]
-  },
+const WINDOW_MS = 30 * 60 * 1000;
+let maxVel = 0;
+let alertActive = false;
+
+const alertBox = document.getElementById("alertBox");
+const maxValueEl = document.getElementById("maxValue");
+
+// 🔊 Buzzer
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playBuzzer() {
+  const osc = audioCtx.createOscillator();
+  osc.frequency.value = 1200;
+  osc.connect(audioCtx.destination);
+  osc.start();
+  setTimeout(() => osc.stop(), 300);
+}
+
+// 🎨 ISO Zone Background Plugin
+const isoZonePlugin = {
+  id: "isoZones",
+  beforeDraw(chart) {
+    const { ctx, chartArea, scales } = chart;
+    if (!chartArea) return;
+
+    const y = scales.y;
+
+    const yA = y.getPixelForValue(ZONE_B);
+    const yB = y.getPixelForValue(ZONE_C);
+    const yC = y.getPixelForValue(ZONE_D);
+
+    ctx.save();
+
+    ctx.fillStyle = "rgba(34,197,94,0.18)"; // Green
+    ctx.fillRect(chartArea.left, yA, chartArea.right-chartArea.left, chartArea.bottom-yA);
+
+    ctx.fillStyle = "rgba(253,224,71,0.25)"; // Yellow
+    ctx.fillRect(chartArea.left, yB, chartArea.right-chartArea.left, yA-yB);
+
+    ctx.fillStyle = "rgba(251,146,60,0.25)"; // Orange
+    ctx.fillRect(chartArea.left, yC, chartArea.right-chartArea.left, yB-yC);
+
+    ctx.fillStyle = "rgba(239,68,68,0.30)"; // Red
+    ctx.fillRect(chartArea.left, chartArea.top, chartArea.right-chartArea.left, yC-chartArea.top);
+
+    ctx.restore();
+  }
+};
+
+// 📊 Chart
+const ctx = document.getElementById("velChart").getContext("2d");
+const chartData = {
+  labels: [],
+  datasets: [{
+    label: "Velocity RMS (mm/s)",
+    data: [],
+    borderColor: "#38bdf8",
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.3,
+    fill: true,
+    backgroundColor: "rgba(56,189,248,0.15)"
+  }]
+};
+
+const velChart = new Chart(ctx, {
+  type: "line",
+  data: chartData,
+  plugins: [isoZonePlugin],
   options: {
+    animation: false,
     scales: {
-      y: {
-        min: 0,
-        max: 10,
-        grid: { color: '#ccc' }
-      }
-    },
-    plugins: {
-      annotation: {
-        annotations: {
-          green: { type: 'box', yMin: 0, yMax: 2.8, backgroundColor: 'rgba(0,255,0,0.1)' },
-          yellow:{ type: 'box', yMin: 2.8, yMax: 4.5, backgroundColor: 'rgba(255,255,0,0.1)' },
-          orange:{ type: 'box', yMin: 4.5, yMax: 7.1, backgroundColor: 'rgba(255,165,0,0.1)' },
-          red:   { type: 'box', yMin: 7.1, yMax: 10, backgroundColor: 'rgba(255,0,0,0.1)' }
-        }
-      }
+      x: { type: "time" },
+      y: { min: 0, max: 12, title: { display: true, text: "mm/s" } }
     }
   }
 });
 
-db.ref("/vibration").on("value", snap => {
-  const d = snap.val();
-  if (!d) return;
+// 🔄 Update Function
+function updateChart(val) {
+  const now = new Date();
+  chartData.labels.push(now);
+  chartData.datasets[0].data.push(val);
 
-  const t = new Date(d.timestamp * 1000);
-  chart.data.labels.push(t);
-  chart.data.datasets[0].data.push(d.velocity_rms);
-
-  if (chart.data.labels.length > 60) {
-    chart.data.labels.shift();
-    chart.data.datasets[0].data.shift();
+  while (now - chartData.labels[0] > WINDOW_MS) {
+    chartData.labels.shift();
+    chartData.datasets[0].data.shift();
   }
-  chart.update();
+
+  if (val > maxVel) {
+    maxVel = val;
+    maxValueEl.textContent = maxVel.toFixed(2);
+  }
+
+  if (val >= ZONE_D && !alertActive) {
+    alertActive = true;
+    alertBox.style.display = "block";
+    chartData.datasets[0].borderColor = "#000";
+    playBuzzer();
+    navigator.vibrate?.([300,150,300]);
+  }
+
+  if (val < ZONE_D) {
+    alertActive = false;
+    alertBox.style.display = "none";
+    chartData.datasets[0].borderColor = "#38bdf8";
+  }
+
+  velChart.update("none");
+}
+
+// 🔥 Firebase Listener
+db.ref("vibration/velocity_rms").on("value", snap => {
+  const v = snap.val();
+  if (typeof v === "number") updateChart(v);
 });
+
+// 🔁 Reset
+function resetMax() {
+  maxVel = 0;
+  maxValueEl.textContent = "0";
+}
 </script>
 
 </body>
