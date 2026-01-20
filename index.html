@@ -1,243 +1,74 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vibration Live Graph</title>
-
-  <!-- Firebase + Chart.js -->
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-
-  <style>
-    body {
-      background: #0f172a;
-      color: #f1f5f9;
-      font-family: "Segoe UI", sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-
-    canvas {
-      background: #1e293b;
-      border-radius: 12px;
-      max-width: 800px;
-      margin-top: 20px;
-    }
-
-    #alertBox {
-      display: none;
-      background: #ef4444;
-      color: white;
-      padding: 10px;
-      margin: 10px auto;
-      border-radius: 8px;
-      width: fit-content;
-      font-weight: bold;
-    }
-
-    #maxBox {
-      margin: 12px auto;
-      padding: 12px 22px;
-      background: #020617;
-      border: 2px solid #38bdf8;
-      border-radius: 10px;
-      width: fit-content;
-      font-size: 18px;
-      font-weight: 600;
-      box-shadow: 0 0 12px rgba(56,189,248,0.4);
-    }
-
-    #maxValue {
-      color: #fde047;
-      font-size: 22px;
-    }
-
-    #resetBtn {
-      margin-top: 10px;
-      padding: 8px 16px;
-      background: #2563eb;
-      border: none;
-      color: white;
-      border-radius: 8px;
-      font-size: 15px;
-      cursor: pointer;
-    }
-
-    #resetBtn:hover {
-      background: #1d4ed8;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Velocity RMS Monitoring</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
 
-  <h2>📈 Vibration Live Graph (Last 30 Minutes)</h2>
-
-  <div id="maxBox">
-    Max Vibration: <span id="maxValue">0</span> Hz<br>
-    <button id="resetBtn">🔁 Reset Max</button>
-  </div>
-
-  <div id="alertBox">⚠️ Critical Vibration (98–100 Hz)!</div>
-
-
-  <canvas id="vibrationChart" width="800" height="400"></canvas>
+<h2>Velocity RMS (mm/s) – ISO 10816</h2>
+<canvas id="chart"></canvas>
 
 <script>
-  // 🔥 Firebase Config
+// 🔥 Firebase Config
   const firebaseConfig = {
     apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
     databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app"
   };
-  firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  const db = firebase.database();
-  const alertBox = document.getElementById("alertBox");
-  const maxValueEl = document.getElementById("maxValue");
-  const resetBtn = document.getElementById("resetBtn");
+const ctx = document.getElementById('chart');
 
-  const THRESHOLD = 98;
-  const WINDOW_MS = 30 * 60 * 1000;
-
-  let vibrationChart;
-  let maxVibration = 0;
-  let alertActive = false;
-
-  // 🔔 Web Buzzer (Beep)
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  function playBuzzer() {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    osc.type = "square";
-    osc.frequency.value = 1200;
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc.start();
-    setTimeout(() => osc.stop(), 300);
-  }
-
-  // 🎨 Background Zone Plugin
-  const zonePlugin = {
-    id: 'zoneBackground',
-    beforeDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!chartArea) return;
-
-      const y = scales.y;
-      const yThreshold = y.getPixelForValue(THRESHOLD);
-
-      ctx.save();
-
-      ctx.fillStyle = 'rgba(34,197,94,0.15)';
-      ctx.fillRect(chartArea.left, yThreshold,
-                   chartArea.right - chartArea.left,
-                   chartArea.bottom - yThreshold);
-
-      ctx.fillStyle = 'rgba(253,224,71,0.25)';
-      ctx.fillRect(chartArea.left, chartArea.top,
-                   chartArea.right - chartArea.left,
-                   yThreshold - chartArea.top);
-
-      ctx.restore();
-    }
-  };
-
-  function startRealtimeChart() {
-    const ctx = document.getElementById("vibrationChart").getContext("2d");
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(253,224,71,0.45)');
-    gradient.addColorStop(THRESHOLD / 125, 'rgba(34,197,94,0.35)');
-    gradient.addColorStop(1, 'rgba(34,197,94,0.15)');
-
-    const data = {
-      labels: [],
-      datasets: [{
-        label: "Frequency (Hz)",
-        data: [],
-        borderColor: '#38bdf8',
-        backgroundColor: gradient,
-        borderWidth: 2,
-        tension: 0.3,
-        pointRadius: 0,
-        fill: true
-      }]
-    };
-
-    vibrationChart = new Chart(ctx, {
-      type: "line",
-      data,
-      plugins: [zonePlugin],
-      options: {
-        animation: false,
-        scales: {
-          x: { type: "time" },
-          y: { min: 0, max: 125 }
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Velocity RMS (mm/s)',
+      data: [],
+      borderWidth: 2,
+      fill: false
+    }]
+  },
+  options: {
+    scales: {
+      y: {
+        min: 0,
+        max: 10,
+        grid: { color: '#ccc' }
+      }
+    },
+    plugins: {
+      annotation: {
+        annotations: {
+          green: { type: 'box', yMin: 0, yMax: 2.8, backgroundColor: 'rgba(0,255,0,0.1)' },
+          yellow:{ type: 'box', yMin: 2.8, yMax: 4.5, backgroundColor: 'rgba(255,255,0,0.1)' },
+          orange:{ type: 'box', yMin: 4.5, yMax: 7.1, backgroundColor: 'rgba(255,165,0,0.1)' },
+          red:   { type: 'box', yMin: 7.1, yMax: 10, backgroundColor: 'rgba(255,0,0,0.1)' }
         }
       }
-    });
-
-    function updateChart(value) {
-      const now = new Date();
-
-      data.labels.push(now);
-      data.datasets[0].data.push(value);
-
-      while (now - data.labels[0] > WINDOW_MS) {
-        data.labels.shift();
-        data.datasets[0].data.shift();
-      }
-
-      // 🔊 MAX VALUE
-      if (value > maxVibration) {
-        maxVibration = value;
-        maxValueEl.textContent = maxVibration.toFixed(2);
-      }
-
-      // 🚨 ALERT + BUZZER + VIBRATION
-      if (value >= THRESHOLD && !alertActive) {
-        alertActive = true;
-        alertBox.style.display = "block";
-        data.datasets[0].borderColor = "#000000";
-
-        playBuzzer();
-
-        if ("vibrate" in navigator) {
-          navigator.vibrate([300, 150, 300]);
-        }
-      }
-
-      if (value < THRESHOLD) {
-        alertActive = false;
-        alertBox.style.display = "none";
-        data.datasets[0].borderColor = "#38bdf8";
-      }
-
-      vibrationChart.update("none");
     }
-
-    const ref = db.ref("live/fft_frequency_hz");
-    ref.off();
-    ref.on("value", snap => {
-      const val = snap.val();
-      if (typeof val === "number") updateChart(val);
-    });
   }
+});
 
-  // 🔁 RESET BUTTON
-  resetBtn.onclick = () => {
-    maxVibration = 0;
-    maxValueEl.textContent = "0";
-  };
+db.ref("/vibration").on("value", snap => {
+  const d = snap.val();
+  if (!d) return;
 
-  window.onload = startRealtimeChart;
+  const t = new Date(d.timestamp * 1000);
+  chart.data.labels.push(t);
+  chart.data.datasets[0].data.push(d.velocity_rms);
+
+  if (chart.data.labels.length > 60) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update();
+});
 </script>
 
 </body>
