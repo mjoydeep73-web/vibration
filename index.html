@@ -185,6 +185,7 @@ canvas{
   justify-content:center;
   z-index:9999;
 }
+input, button{font-size:14px;}
 </style>
 </head>
 
@@ -296,7 +297,7 @@ const chart=new Chart(trend.getContext("2d"),{
   options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:120}}}
 });
 
-/* LOG */
+/* LOG ALARM WITH AUTO-CLEAN */
 function logAlarm(type,v,msg){
   const ref = db.ref("alarms");
   ref.push({
@@ -305,19 +306,15 @@ function logAlarm(type,v,msg){
     value:v,
     message:msg
   });
-
-  // keep only last 50 alarms in DB (auto cleanup)
   ref.once("value", snap=>{
     const val = snap.val();
     if(!val) return;
     const keys = Object.keys(val);
-    if(keys.length > 50){
-      ref.child(keys[0]).remove();
-    }
+    if(keys.length>50) ref.child(keys[0]).remove();
   });
 }
 
-/* UPDATE */
+/* UPDATE DISPLAY */
 function update(v){
   velEl.textContent=v.toFixed(2);
   data.labels.push(new Date());
@@ -353,15 +350,14 @@ function update(v){
   }
 }
 
-/* SENSOR */
-db.ref("vibration/velocity_rms").limitToLast(10).on("value",s=>{
-  if(typeof s.val()==="number") update(s.val());
+/* SENSOR LISTENER - FIXED */
+db.ref("vibration/velocity_rms").on("value", s => {
+  const val = s.val();
+  if (typeof val === "number") update(val);
 });
-/* Using "limitToLast(10)" limits incoming values for update, but
-   real sensor data often streams faster, so adjust if needed. */
 
-/* HISTORY */
-db.ref("alarms").limitToLast(10).on("child_added",snap=>{
+/* ALARM HISTORY - last 10 rows */
+db.ref("alarms").limitToLast(10).on("child_added", snap=>{
   const a=snap.val();
   const tr=document.createElement("tr");
   tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
