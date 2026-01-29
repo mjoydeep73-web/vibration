@@ -63,27 +63,76 @@ body{
 .yellow{background:#facc15;}
 .red{background:#dc2626;}
 
-/* MIMIC */
+/* CONVEYOR */
 .mimic{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:30px;
+  gap:40px;
   margin-top:20px;
 }
-.block{
-  width:80px;height:80px;
-  border:2px solid #64748b;
-  display:flex;align-items:center;justify-content:center;
+
+.roller{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  border:3px solid #64748b;
   background:#020617;
+  position:relative;
 }
-.motor{border-radius:50%;}
-.bearing{width:60px;height:60px;border-radius:50%;}
-.line{
-  width:60px;height:6px;
-  background:#22c55e;
+
+.roller::after{
+  content:"";
+  width:6px;height:14px;
+  background:#94a3b8;
+  position:absolute;
+  top:8px;left:50%;
+  transform:translateX(-50%);
 }
-.line.off{background:#7f1d1d;}
+
+.belt{
+  width:160px;
+  height:16px;
+  border-radius:8px;
+  background:#374151;
+  overflow:hidden;
+  position:relative;
+}
+
+.belt::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,.15) 0,
+    rgba(255,255,255,.15) 10px,
+    transparent 10px,
+    transparent 20px
+  );
+  animation:moveBelt .6s linear infinite;
+}
+
+.belt.idle::before{ animation-play-state:paused; }
+.belt.run{ background:#22c55e; }
+.belt.warn{ background:#facc15; }
+.belt.trip{
+  background:#7f1d1d;
+}
+.belt.trip::before{ animation-play-state:paused; }
+
+.rotate{
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+@keyframes moveBelt{
+  from{background-position:0 0}
+  to{background-position:40px 0}
+}
 
 /* VALUE */
 .value{
@@ -123,21 +172,45 @@ canvas{
   background:#020617;
   border-radius:6px;
 }
+
+/* LOGIN */
+#loginBox{
+  position:fixed;
+  inset:0;
+  background:#020617;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+}
 </style>
 </head>
 
 <body>
 
+<!-- LOGIN -->
+<div id="loginBox">
+  <div class="panel" style="width:320px;text-align:center">
+    <h3>🔐 Operator Login</h3>
+    <input id="email" type="email" placeholder="Email" style="width:100%;padding:8px;margin:6px 0">
+    <input id="password" type="password" placeholder="Password" style="width:100%;padding:8px;margin:6px 0">
+    <button onclick="login()" style="width:100%;padding:8px">Login</button>
+    <div id="loginError" style="color:#f87171;margin-top:8px"></div>
+  </div>
+</div>
+
 <div class="header">
-  <h2>🏭 SCADA – Conveyor Vibration System</h2>
-  <div>Operator: <b id="userEmail">---</b></div>
+  <h2>🏭 Real Time Analyzer - DeurTech</h2>
+  <div>
+    Operator: <b id="userEmail">---</b>
+    <button onclick="logout()" style="margin-left:10px">Logout</button>
+  </div>
 </div>
 
 <div class="main">
 
-<!-- PROCESS PANEL -->
 <div class="panel">
-  <h3>PROCESS MIMIC</h3>
+  <h3>CONVEYOR STATUS</h3>
 
   <div class="lamps">
     RUN <div id="lampRun" class="lamp"></div>
@@ -146,34 +219,26 @@ canvas{
   </div>
 
   <div class="mimic">
-    <div class="block motor">MOTOR</div>
-    <div id="l1" class="line"></div>
-    <div class="block bearing">BRG1</div>
-    <div id="l2" class="line"></div>
-    <div class="block bearing">BRG2</div>
+    <div id="r1" class="roller"></div>
+    <div id="belt" class="belt idle"></div>
+    <div id="r2" class="roller"></div>
   </div>
 
   <div class="value">
     <span id="vel">0.00</span> mm/s
   </div>
 
-  <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – ISO ZONE D</div>
+  <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – EXCESSIVE VIBRATION</div>
 </div>
 
-<!-- TREND + HISTORY -->
 <div class="panel">
   <h3>VIBRATION TREND</h3>
   <canvas id="trend" height="220"></canvas>
 
-  <h3 style="margin-top:15px">🧾 ALARM & TRIP HISTORY</h3>
+  <h3 style="margin-top:15px">🧾 ALARM HISTORY</h3>
   <table>
     <thead>
-      <tr>
-        <th>Time</th>
-        <th>Type</th>
-        <th>Velocity</th>
-        <th>Description</th>
-      </tr>
+      <tr><th>Time</th><th>Type</th><th>Velocity</th><th>Description</th></tr>
     </thead>
     <tbody id="alarmTable"></tbody>
   </table>
@@ -187,21 +252,46 @@ firebase.initializeApp({
   apiKey:"AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
   databaseURL:"https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
 });
+const auth = firebase.auth();
 const db = firebase.database();
+
+/* AUTH */
+const loginBox = document.getElementById("loginBox");
+const userEmailEl = document.getElementById("userEmail");
+const loginError = document.getElementById("loginError");
+
+function login(){
+  auth.signInWithEmailAndPassword(
+    email.value, password.value
+  ).catch(e=>loginError.textContent=e.message);
+}
+function logout(){ auth.signOut(); }
+
+auth.onAuthStateChanged(u=>{
+  if(u){
+    loginBox.style.display="none";
+    userEmailEl.textContent=u.email;
+  }else{
+    loginBox.style.display="flex";
+    userEmailEl.textContent="---";
+  }
+});
 
 /* LIMITS */
 const WARN = 90;
 const TRIP = 100;
-let lastState = "NORMAL";
+let lastState = "";
 
 /* ELEMENTS */
-const lampRun = document.getElementById("lampRun");
-const lampWarn = document.getElementById("lampWarn");
-const lampTrip = document.getElementById("lampTrip");
-const alarmBox = document.getElementById("alarmBox");
+const lampRun = lampWarn = lampTrip = null;
+const lampRunEl = document.getElementById("lampRun");
+const lampWarnEl = document.getElementById("lampWarn");
+const lampTripEl = document.getElementById("lampTrip");
+const belt = document.getElementById("belt");
+const r1 = document.getElementById("r1");
+const r2 = document.getElementById("r2");
 const velEl = document.getElementById("vel");
-const l1 = document.getElementById("l1");
-const l2 = document.getElementById("l2");
+const alarmBox = document.getElementById("alarmBox");
 
 /* CHART */
 const data = {labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]};
@@ -211,75 +301,66 @@ const chart = new Chart(trend.getContext("2d"),{
   options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:120}}}
 });
 
-/* LOG ALARM */
+/* LOG */
 function logAlarm(type,v,msg){
-  db.ref("alarms").push({
-    time:Date.now(),
-    type:type,
-    value:v,
-    message:msg
-  });
+  db.ref("alarms").push({time:Date.now(),type,value:v,message:msg});
 }
 
-/* UPDATE STATE MACHINE */
+/* UPDATE */
 function update(v){
-  velEl.textContent = v.toFixed(2);
-
+  velEl.textContent=v.toFixed(2);
   data.labels.push(new Date());
   data.datasets[0].data.push(v);
+  if(data.labels.length>300){data.labels.shift();data.datasets[0].data.shift();}
   chart.update("none");
 
-  lampRun.className="lamp";
-  lampWarn.className="lamp";
-  lampTrip.className="lamp";
+  lampRunEl.className="lamp";
+  lampWarnEl.className="lamp";
+  lampTripEl.className="lamp";
+  belt.className="belt idle";
+  r1.className="roller";
+  r2.className="roller";
   alarmBox.style.display="none";
-  l1.className="line";
-  l2.className="line";
 
-  if(v < WARN){
-    lampRun.classList.add("green");
-    if(lastState!=="NORMAL"){
-      logAlarm("NORMAL",v,"Vibration returned to normal");
-      lastState="NORMAL";
-    }
+  if(v<=10){
+    lampRunEl.classList.add("green");
+    if(lastState!=="IDLE"){logAlarm("IDLE",v,"Conveyor idle");lastState="IDLE";}
   }
-  else if(v < TRIP){
-    lampWarn.classList.add("yellow");
-    if(lastState!=="WARN"){
-      logAlarm("WARN",v,"High vibration warning");
-      lastState="WARN";
-    }
+  else if(v<WARN){
+    lampRunEl.classList.add("green");
+    belt.classList.add("run");
+    r1.classList.add("rotate"); r2.classList.add("rotate");
+    if(lastState!=="RUN"){logAlarm("RUN",v,"Conveyor running");lastState="RUN";}
+  }
+  else if(v<TRIP){
+    lampWarnEl.classList.add("yellow");
+    belt.classList.add("warn");
+    r1.classList.add("rotate"); r2.classList.add("rotate");
+    if(lastState!=="WARN"){logAlarm("WARN",v,"High vibration");lastState="WARN";}
   }
   else{
-    lampTrip.classList.add("red");
+    lampTripEl.classList.add("red");
+    belt.classList.add("trip");
     alarmBox.style.display="block";
-    l1.classList.add("off");
-    l2.classList.add("off");
-    if(lastState!=="TRIP"){
-      logAlarm("TRIP",v,"ISO ZONE D – Auto Shutdown");
-      lastState="TRIP";
-    }
+    if(lastState!=="TRIP"){logAlarm("TRIP",v,"Auto shutdown");lastState="TRIP";}
   }
 }
 
-/* SENSOR LISTENER */
+/* SENSOR */
 db.ref("vibration/velocity_rms").on("value",s=>{
   if(typeof s.val()==="number") update(s.val());
 });
 
-/* HISTORY TABLE */
-const table = document.getElementById("alarmTable");
+/* HISTORY */
 db.ref("alarms").limitToLast(50).on("child_added",snap=>{
-  const a = snap.val();
-  const tr = document.createElement("tr");
-  tr.className = a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
-  tr.innerHTML = `
-    <td>${new Date(a.time).toLocaleString()}</td>
-    <td>${a.type}</td>
-    <td>${a.value.toFixed(2)}</td>
-    <td>${a.message}</td>
-  `;
-  table.prepend(tr);
+  const a=snap.val();
+  const tr=document.createElement("tr");
+  tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
+  tr.innerHTML=`<td>${new Date(a.time).toLocaleString()}</td>
+                <td>${a.type}</td>
+                <td>${a.value.toFixed(2)}</td>
+                <td>${a.message}</td>`;
+  alarmTable.prepend(tr);
 });
 </script>
 
