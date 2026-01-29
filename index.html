@@ -40,7 +40,7 @@ body{
   padding:12px;
 }
 
-/* PANELS */
+/* PANEL */
 .panel{
   background:#111827;
   border:2px solid #334155;
@@ -63,75 +63,70 @@ body{
 .yellow{background:#facc15;}
 .red{background:#dc2626;}
 
-/* CONVEYOR */
-.mimic{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:40px;
+/* ROLLER CONVEYOR */
+.conveyor{
   margin-top:20px;
 }
 
-.roller{
-  width:80px;
-  height:80px;
-  border-radius:50%;
-  border:3px solid #64748b;
+.roller-track{
+  display:flex;
+  gap:12px;
+  padding:16px 20px;
   background:#020617;
+  border:2px solid #334155;
+  border-radius:12px;
+  overflow:hidden;
+}
+
+.roller{
+  width:44px;
+  height:16px;
+  border-radius:8px;
+  background:linear-gradient(
+    to bottom,
+    #94a3b8,
+    #475569,
+    #94a3b8
+  );
+  box-shadow:inset 0 0 4px #000;
   position:relative;
 }
 
 .roller::after{
   content:"";
-  width:6px;height:14px;
-  background:#94a3b8;
-  position:absolute;
-  top:8px;left:50%;
-  transform:translateX(-50%);
-}
-
-.belt{
-  width:160px;
-  height:16px;
-  border-radius:8px;
-  background:#374151;
-  overflow:hidden;
-  position:relative;
-}
-
-.belt::before{
-  content:"";
   position:absolute;
   inset:0;
-  background:repeating-linear-gradient(
-    45deg,
-    rgba(255,255,255,.15) 0,
-    rgba(255,255,255,.15) 10px,
-    transparent 10px,
-    transparent 20px
+  background:linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,.6),
+    transparent
   );
-  animation:moveBelt .6s linear infinite;
+  animation:roll .6s linear infinite;
 }
 
-.belt.idle::before{ animation-play-state:paused; }
-.belt.run{ background:#22c55e; }
-.belt.warn{ background:#facc15; }
-.belt.trip{
+/* STATES */
+.idle .roller::after{ animation-play-state:paused; }
+
+.run .roller::after{ animation-play-state:running; }
+
+.warn{
+  box-shadow:0 0 12px #facc15 inset;
+}
+
+.trip{
+  box-shadow:0 0 14px #dc2626 inset;
+}
+.trip .roller{
   background:#7f1d1d;
 }
-.belt.trip::before{ animation-play-state:paused; }
-
-.rotate{
-  animation:spin 1s linear infinite;
+.trip .roller::after{
+  animation-play-state:paused;
 }
 
-@keyframes spin{
-  from{transform:rotate(0deg)}
-  to{transform:rotate(360deg)}
-}
-@keyframes moveBelt{
-  from{background-position:0 0}
-  to{background-position:40px 0}
+@keyframes roll{
+  from{background-position:0 0;}
+  to{background-position:40px 0;}
 }
 
 /* VALUE */
@@ -167,6 +162,13 @@ th,td{
 .alarm-warn{background:#713f12;color:#fde68a;}
 .alarm-trip{background:#7f1d1d;color:#fecaca;}
 .alarm-ok{background:#064e3b;color:#a7f3d0;}
+
+/* Make alarm table scrollable and max height */
+#alarmTable {
+  display: block;
+  max-height: 180px;
+  overflow-y: auto;
+}
 
 canvas{
   background:#020617;
@@ -209,6 +211,7 @@ canvas{
 
 <div class="main">
 
+<!-- PROCESS -->
 <div class="panel">
   <h3>CONVEYOR STATUS</h3>
 
@@ -218,10 +221,8 @@ canvas{
     TRIP <div id="lampTrip" class="lamp"></div>
   </div>
 
-  <div class="mimic">
-    <div id="r1" class="roller"></div>
-    <div id="belt" class="belt idle"></div>
-    <div id="r2" class="roller"></div>
+  <div class="conveyor">
+    <div id="rollerTrack" class="roller-track idle"></div>
   </div>
 
   <div class="value">
@@ -231,6 +232,7 @@ canvas{
   <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – EXCESSIVE VIBRATION</div>
 </div>
 
+<!-- TREND -->
 <div class="panel">
   <h3>VIBRATION TREND</h3>
   <canvas id="trend" height="220"></canvas>
@@ -256,46 +258,39 @@ const auth = firebase.auth();
 const db = firebase.database();
 
 /* AUTH */
-const loginBox = document.getElementById("loginBox");
-const userEmailEl = document.getElementById("userEmail");
-const loginError = document.getElementById("loginError");
-
 function login(){
-  auth.signInWithEmailAndPassword(
-    email.value, password.value
-  ).catch(e=>loginError.textContent=e.message);
+  auth.signInWithEmailAndPassword(email.value,password.value)
+    .catch(e=>loginError.textContent=e.message);
 }
 function logout(){ auth.signOut(); }
 
 auth.onAuthStateChanged(u=>{
-  if(u){
-    loginBox.style.display="none";
-    userEmailEl.textContent=u.email;
-  }else{
-    loginBox.style.display="flex";
-    userEmailEl.textContent="---";
-  }
+  loginBox.style.display = u ? "none" : "flex";
+  userEmail.textContent = u ? u.email : "---";
 });
 
 /* LIMITS */
-const WARN = 90;
-const TRIP = 100;
-let lastState = "";
+const WARN=90, TRIP=100;
+let lastState="";
 
 /* ELEMENTS */
-const lampRun = lampWarn = lampTrip = null;
-const lampRunEl = document.getElementById("lampRun");
-const lampWarnEl = document.getElementById("lampWarn");
-const lampTripEl = document.getElementById("lampTrip");
-const belt = document.getElementById("belt");
-const r1 = document.getElementById("r1");
-const r2 = document.getElementById("r2");
-const velEl = document.getElementById("vel");
-const alarmBox = document.getElementById("alarmBox");
+const lampRun=document.getElementById("lampRun");
+const lampWarn=document.getElementById("lampWarn");
+const lampTrip=document.getElementById("lampTrip");
+const velEl=document.getElementById("vel");
+const alarmBox=document.getElementById("alarmBox");
+const rollerTrack=document.getElementById("rollerTrack");
+
+/* CREATE ROLLERS */
+for(let i=0;i<10;i++){
+  const r=document.createElement("div");
+  r.className="roller";
+  rollerTrack.appendChild(r);
+}
 
 /* CHART */
-const data = {labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]};
-const chart = new Chart(trend.getContext("2d"),{
+const data={labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]};
+const chart=new Chart(trend.getContext("2d"),{
   type:"line",
   data,
   options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:120}}}
@@ -303,7 +298,23 @@ const chart = new Chart(trend.getContext("2d"),{
 
 /* LOG */
 function logAlarm(type,v,msg){
-  db.ref("alarms").push({time:Date.now(),type,value:v,message:msg});
+  const ref = db.ref("alarms");
+  ref.push({
+    time:Date.now(),
+    type:type,
+    value:v,
+    message:msg
+  });
+
+  // keep only last 50 alarms in DB (auto cleanup)
+  ref.once("value", snap=>{
+    const val = snap.val();
+    if(!val) return;
+    const keys = Object.keys(val);
+    if(keys.length > 50){
+      ref.child(keys[0]).remove();
+    }
+  });
 }
 
 /* UPDATE */
@@ -314,52 +325,51 @@ function update(v){
   if(data.labels.length>300){data.labels.shift();data.datasets[0].data.shift();}
   chart.update("none");
 
-  lampRunEl.className="lamp";
-  lampWarnEl.className="lamp";
-  lampTripEl.className="lamp";
-  belt.className="belt idle";
-  r1.className="roller";
-  r2.className="roller";
+  lampRun.className="lamp";
+  lampWarn.className="lamp";
+  lampTrip.className="lamp";
+  rollerTrack.className="roller-track idle";
   alarmBox.style.display="none";
 
   if(v<=10){
-    lampRunEl.classList.add("green");
+    lampRun.classList.add("green");
     if(lastState!=="IDLE"){logAlarm("IDLE",v,"Conveyor idle");lastState="IDLE";}
   }
   else if(v<WARN){
-    lampRunEl.classList.add("green");
-    belt.classList.add("run");
-    r1.classList.add("rotate"); r2.classList.add("rotate");
+    lampRun.classList.add("green");
+    rollerTrack.classList.add("run");
     if(lastState!=="RUN"){logAlarm("RUN",v,"Conveyor running");lastState="RUN";}
   }
   else if(v<TRIP){
-    lampWarnEl.classList.add("yellow");
-    belt.classList.add("warn");
-    r1.classList.add("rotate"); r2.classList.add("rotate");
+    lampWarn.classList.add("yellow");
+    rollerTrack.classList.add("run","warn");
     if(lastState!=="WARN"){logAlarm("WARN",v,"High vibration");lastState="WARN";}
   }
   else{
-    lampTripEl.classList.add("red");
-    belt.classList.add("trip");
+    lampTrip.classList.add("red");
+    rollerTrack.classList.add("trip");
     alarmBox.style.display="block";
     if(lastState!=="TRIP"){logAlarm("TRIP",v,"Auto shutdown");lastState="TRIP";}
   }
 }
 
 /* SENSOR */
-db.ref("vibration/velocity_rms").on("value",s=>{
+db.ref("vibration/velocity_rms").limitToLast(10).on("value",s=>{
   if(typeof s.val()==="number") update(s.val());
 });
+/* Using "limitToLast(10)" limits incoming values for update, but
+   real sensor data often streams faster, so adjust if needed. */
 
 /* HISTORY */
-db.ref("alarms").limitToLast(50).on("child_added",snap=>{
+db.ref("alarms").limitToLast(10).on("child_added",snap=>{
   const a=snap.val();
   const tr=document.createElement("tr");
   tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
-  tr.innerHTML=`<td>${new Date(a.time).toLocaleString()}</td>
-                <td>${a.type}</td>
-                <td>${a.value.toFixed(2)}</td>
-                <td>${a.message}</td>`;
+  tr.innerHTML=`
+    <td>${new Date(a.time).toLocaleString()}</td>
+    <td>${a.type}</td>
+    <td>${a.value.toFixed(2)}</td>
+    <td>${a.message}</td>`;
   alarmTable.prepend(tr);
 });
 </script>
