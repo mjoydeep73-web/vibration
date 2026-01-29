@@ -434,18 +434,24 @@
     });
 
     /* ALARM HISTORY - last 10 rows */
-    db.ref("alarms").limitToLast(10).on("child_added", snap => {
-      const a = snap.val();
-      const tr = document.createElement("tr");
-      tr.className = a.type === "TRIP" ? "alarm-trip" : a.type === "WARN" ? "alarm-warn" : "alarm-ok";
-      tr.innerHTML = `
-        <td>${new Date(a.time).toLocaleString()}</td>
-        <td>${a.type}</td>
-        <td>${a.value.toFixed(2)}</td>
-        <td>${a.message}</td>
-      `;
-      alarmTable.prepend(tr);
-    });
+    const displayedAlarms = new Set();
+
+  db.ref("alarms").limitToLast(10).on("child_added", snap => {
+  if (displayedAlarms.has(snap.key)) return; // skip duplicates
+  displayedAlarms.add(snap.key);
+  
+  const a = snap.val();
+  const tr = document.createElement("tr");
+  tr.className = a.type === "TRIP" ? "alarm-trip" : a.type === "WARN" ? "alarm-warn" : "alarm-ok";
+  tr.innerHTML = `
+    <td>${new Date(a.time).toLocaleString()}</td>
+    <td>${a.type}</td>
+    <td>${a.value.toFixed(2)}</td>
+    <td>${a.message}</td>
+  `;
+  alarmTable.prepend(tr);
+});
+
   </script>
 </body>
 </html>
