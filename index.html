@@ -2,196 +2,285 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<title>Real Time Analyzer - DeurTech</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Velocity RMS Monitor</title>
 
-<!-- Firebase + Chart.js -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+
+<!-- Chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 <style>
-body {
-  background: #0f172a;
-  color: #e5e7eb;
-  font-family: "Segoe UI", sans-serif;
-  text-align: center;
-  padding: 20px;
+body{
+  margin:0;
+  background:#1b1f23;
+  color:#e5e7eb;
+  font-family:Segoe UI, Arial, sans-serif;
 }
 
-canvas {
-  background: #020617;
-  border-radius: 14px;
-  max-width: 900px;
-  margin-top: 20px;
+/* HEADER */
+.header{
+  background:#0f172a;
+  padding:10px 20px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-bottom:2px solid #334155;
 }
 
-#alertBox {
-  display: none;
-  background: #dc2626;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 10px;
-  font-weight: bold;
-  margin: 10px auto;
+/* LAYOUT */
+.main{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:12px;
+  padding:12px;
 }
 
-#maxBox {
-  margin: 12px auto;
-  padding: 12px 22px;
-  background: #020617;
-  border: 2px solid #38bdf8;
-  border-radius: 12px;
-  width: fit-content;
-  font-size: 18px;
-  box-shadow: 0 0 14px rgba(56,189,248,0.4);
+/* PANELS */
+.panel{
+  background:#111827;
+  border:2px solid #334155;
+  border-radius:6px;
+  padding:10px;
 }
 
-#maxValue {
-  color: #fde047;
-  font-size: 22px;
+/* STATUS LAMPS */
+.lamps{
+  display:flex;
+  gap:14px;
+  margin:10px 0;
+}
+.lamp{
+  width:18px;height:18px;border-radius:50%;
+  background:#374151;
+  box-shadow:inset 0 0 6px black;
+}
+.green{background:#22c55e;}
+.yellow{background:#facc15;}
+.red{background:#dc2626;}
+
+/* MIMIC */
+.mimic{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:30px;
+  margin-top:20px;
+}
+.block{
+  width:80px;height:80px;
+  border:2px solid #64748b;
+  display:flex;align-items:center;justify-content:center;
+  background:#020617;
+}
+.motor{border-radius:50%;}
+.bearing{width:60px;height:60px;border-radius:50%;}
+.line{
+  width:60px;height:6px;
+  background:#22c55e;
+}
+.line.off{background:#7f1d1d;}
+
+/* VALUE */
+.value{
+  font-size:30px;
+  text-align:center;
+  margin-top:10px;
 }
 
-button {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: #2563eb;
-  border: none;
-  color: white;
-  border-radius: 8px;
-  cursor: pointer;
+/* ALARM */
+.alarm{
+  display:none;
+  background:#7f1d1d;
+  border:2px solid #dc2626;
+  padding:10px;
+  font-weight:bold;
+  margin-top:10px;
+  animation:blink 1s infinite;
 }
-button:hover { background: #1d4ed8; }
+@keyframes blink{50%{opacity:.4;}}
+
+/* TABLE */
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+th,td{
+  border:1px solid #334155;
+  padding:6px;
+  text-align:center;
+}
+.alarm-warn{background:#713f12;color:#fde68a;}
+.alarm-trip{background:#7f1d1d;color:#fecaca;}
+.alarm-ok{background:#064e3b;color:#a7f3d0;}
+
+canvas{
+  background:#020617;
+  border-radius:6px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>📈 Vibration RMS Live Monitor </h2>
-
-<div id="maxBox">
-Max Velocity RMS: <span id="maxValue">0</span> mm/s<br>
-<button onclick="resetMax()">🔁 Reset Max</button>
+<div class="header">
+  <h2>🏭 SCADA – Conveyor Vibration System</h2>
+  <div>Operator: <b id="userEmail">---</b></div>
 </div>
 
-<div id="alertBox">🚨 ISO ZONE D — SEVERE VIBRATION</div>
+<div class="main">
 
-<canvas id="velChart" width="900" height="420"></canvas>
+<!-- PROCESS PANEL -->
+<div class="panel">
+  <h3>PROCESS MIMIC</h3>
+
+  <div class="lamps">
+    RUN <div id="lampRun" class="lamp"></div>
+    WARN <div id="lampWarn" class="lamp"></div>
+    TRIP <div id="lampTrip" class="lamp"></div>
+  </div>
+
+  <div class="mimic">
+    <div class="block motor">MOTOR</div>
+    <div id="l1" class="line"></div>
+    <div class="block bearing">BRG1</div>
+    <div id="l2" class="line"></div>
+    <div class="block bearing">BRG2</div>
+  </div>
+
+  <div class="value">
+    <span id="vel">0.00</span> mm/s
+  </div>
+
+  <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – ISO ZONE D</div>
+</div>
+
+<!-- TREND + HISTORY -->
+<div class="panel">
+  <h3>VIBRATION TREND</h3>
+  <canvas id="trend" height="220"></canvas>
+
+  <h3 style="margin-top:15px">🧾 ALARM & TRIP HISTORY</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Type</th>
+        <th>Velocity</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody id="alarmTable"></tbody>
+  </table>
+</div>
+
+</div>
 
 <script>
-/* 🔥 Firebase Config */
-const firebaseConfig = {
-  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
-};
-
-/* ✅ INITIALIZE FIREBASE (YOU MISSED THIS) */
-firebase.initializeApp(firebaseConfig);
+/* FIREBASE */
+firebase.initializeApp({
+  apiKey:"AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+  databaseURL:"https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
+});
 const db = firebase.database();
 
-/* ISO 10816 Limits */
-const ZONE_B = 20;
-const ZONE_C = 50;
-const ZONE_D = 100;
+/* LIMITS */
+const WARN = 90;
+const TRIP = 100;
+let lastState = "NORMAL";
 
-const WINDOW_MS = 30 * 60 * 1000;
-let maxVel = 0;
-let alertActive = false;
+/* ELEMENTS */
+const lampRun = document.getElementById("lampRun");
+const lampWarn = document.getElementById("lampWarn");
+const lampTrip = document.getElementById("lampTrip");
+const alarmBox = document.getElementById("alarmBox");
+const velEl = document.getElementById("vel");
+const l1 = document.getElementById("l1");
+const l2 = document.getElementById("l2");
 
-const alertBox = document.getElementById("alertBox");
-const maxValueEl = document.getElementById("maxValue");
+/* CHART */
+const data = {labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]};
+const chart = new Chart(trend.getContext("2d"),{
+  type:"line",
+  data,
+  options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:120}}}
+});
 
-/* 🔊 Buzzer */
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-document.body.addEventListener("click", () => audioCtx.resume(), { once: true });
-
-function playBuzzer() {
-  const osc = audioCtx.createOscillator();
-  osc.frequency.value = 1200;
-  osc.connect(audioCtx.destination);
-  osc.start();
-  setTimeout(() => osc.stop(), 300);
+/* LOG ALARM */
+function logAlarm(type,v,msg){
+  db.ref("alarms").push({
+    time:Date.now(),
+    type:type,
+    value:v,
+    message:msg
+  });
 }
 
-/* 📊 Chart */
-const ctx = document.getElementById("velChart").getContext("2d");
+/* UPDATE STATE MACHINE */
+function update(v){
+  velEl.textContent = v.toFixed(2);
 
-const chartData = {
-  labels: [],
-  datasets: [{
-    label: "Velocity RMS (mm/s)",
-    data: [],
-    borderColor: "#38bdf8",
-    borderWidth: 2,
-    pointRadius: 0,
-    tension: 0.3,
-    fill: true,
-    backgroundColor: "rgba(56,189,248,0.15)"
-  }]
-};
+  data.labels.push(new Date());
+  data.datasets[0].data.push(v);
+  chart.update("none");
 
-const velChart = new Chart(ctx, {
-  type: "line",
-  data: chartData,
-  options: {
-    animation: false,
-    scales: {
-      x: { type: "time" },
-      y: {
-        min: 0,
-        max: 120,
-        title: { display: true, text: "mm/s" }
-      }
+  lampRun.className="lamp";
+  lampWarn.className="lamp";
+  lampTrip.className="lamp";
+  alarmBox.style.display="none";
+  l1.className="line";
+  l2.className="line";
+
+  if(v < WARN){
+    lampRun.classList.add("green");
+    if(lastState!=="NORMAL"){
+      logAlarm("NORMAL",v,"Vibration returned to normal");
+      lastState="NORMAL";
     }
   }
-});
-
-/* 🔄 Update Function */
-function updateChart(val) {
-  const now = new Date();
-  chartData.labels.push(now);
-  chartData.datasets[0].data.push(val);
-
-  while (now - chartData.labels[0] > WINDOW_MS) {
-    chartData.labels.shift();
-    chartData.datasets[0].data.shift();
+  else if(v < TRIP){
+    lampWarn.classList.add("yellow");
+    if(lastState!=="WARN"){
+      logAlarm("WARN",v,"High vibration warning");
+      lastState="WARN";
+    }
   }
-
-  if (val > maxVel) {
-    maxVel = val;
-    maxValueEl.textContent = maxVel.toFixed(2);
+  else{
+    lampTrip.classList.add("red");
+    alarmBox.style.display="block";
+    l1.classList.add("off");
+    l2.classList.add("off");
+    if(lastState!=="TRIP"){
+      logAlarm("TRIP",v,"ISO ZONE D – Auto Shutdown");
+      lastState="TRIP";
+    }
   }
-
-  if (val >= ZONE_D && !alertActive) {
-    alertActive = true;
-    alertBox.style.display = "block";
-    chartData.datasets[0].borderColor = "#000";
-    playBuzzer();
-    navigator.vibrate?.([300,150,300]);
-  }
-
-  if (val < ZONE_D) {
-    alertActive = false;
-    alertBox.style.display = "none";
-    chartData.datasets[0].borderColor = "#38bdf8";
-  }
-
-  velChart.update("none");
 }
 
-/* 🔥 Firebase Listener */
-db.ref("vibration/velocity_rms").on("value", snap => {
-  const v = snap.val();
-  console.log("Firebase value:", v); // DEBUG
-  if (typeof v === "number") updateChart(v);
+/* SENSOR LISTENER */
+db.ref("vibration/velocity_rms").on("value",s=>{
+  if(typeof s.val()==="number") update(s.val());
 });
 
-/* 🔁 Reset */
-function resetMax() {
-  maxVel = 0;
-  maxValueEl.textContent = "0";
-}
+/* HISTORY TABLE */
+const table = document.getElementById("alarmTable");
+db.ref("alarms").limitToLast(50).on("child_added",snap=>{
+  const a = snap.val();
+  const tr = document.createElement("tr");
+  tr.className = a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
+  tr.innerHTML = `
+    <td>${new Date(a.time).toLocaleString()}</td>
+    <td>${a.type}</td>
+    <td>${a.value.toFixed(2)}</td>
+    <td>${a.message}</td>
+  `;
+  table.prepend(tr);
+});
 </script>
 
 </body>
