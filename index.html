@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>Real Time Analyzer - DeurTech</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
@@ -15,360 +15,432 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 <style>
-body{
-  margin:0;
-  background:#1b1f23;
-  color:#e5e7eb;
-  font-family:Segoe UI, Arial, sans-serif;
-}
+  body {
+    margin: 0;
+    background: #1b1f23;
+    color: #e5e7eb;
+    font-family: Segoe UI, Arial, sans-serif;
+  }
 
-/* HEADER */
-.header{
-  background:#0f172a;
-  padding:10px 20px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  border-bottom:2px solid #334155;
-}
+  /* HEADER */
+  .header {
+    background: #0f172a;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #334155;
+  }
 
-/* LAYOUT */
-.main{
-  display:grid;
-  grid-template-columns:2fr 1fr;
-  gap:12px;
-  padding:12px;
-}
+  /* LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
 
-/* PANEL */
-.panel{
-  background:#111827;
-  border:2px solid #334155;
-  border-radius:6px;
-  padding:10px;
-}
+  /* PANEL */
+  .panel {
+    background: #111827;
+    border: 2px solid #334155;
+    border-radius: 6px;
+    padding: 10px;
+  }
 
-/* STATUS LAMPS */
-.lamps{
-  display:flex;
-  gap:14px;
-  margin:10px 0;
-}
-.lamp{
-  width:18px;height:18px;border-radius:50%;
-  background:#374151;
-  box-shadow:inset 0 0 6px black;
-}
-.green{background:#22c55e;}
-.yellow{background:#facc15;}
-.red{background:#dc2626;}
+  /* STATUS LAMPS */
+  .lamps {
+    display: flex;
+    gap: 14px;
+    margin: 10px 0;
+  }
+  .lamp {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #374151;
+    box-shadow: inset 0 0 6px black;
+  }
+  .green {
+    background: #22c55e;
+  }
+  .yellow {
+    background: #facc15;
+  }
+  .red {
+    background: #dc2626;
+  }
 
-/* ROLLER CONVEYOR */
-.conveyor{
-  margin-top:20px;
-}
+  /* ROTATING CONVEYOR */
+  .conveyor-loop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    justify-content: center;
+  }
 
-.roller-track{
-  display:flex;
-  gap:12px;
-  padding:16px 20px;
-  background:#020617;
-  border:2px solid #334155;
-  border-radius:12px;
-  overflow:hidden;
-}
+  .roller {
+    width: 60px;
+    height: 60px;
+    background: #bbb;
+    border-radius: 50%;
+    box-shadow: inset 0 0 10px #999;
+  }
 
-.roller{
-  width:44px;
-  height:16px;
-  border-radius:8px;
-  background:linear-gradient(
-    to bottom,
-    #94a3b8,
-    #475569,
-    #94a3b8
-  );
-  box-shadow:inset 0 0 4px #000;
-  position:relative;
-}
+  .belt {
+    flex-grow: 1;
+    height: 40px;
+    background: repeating-linear-gradient(
+      90deg,
+      #8b9cae,
+      #8b9cae 10px,
+      #a1b1c4 10px,
+      #a1b1c4 20px
+    );
+    background-size: 40px 40px;
+    border-radius: 20px;
+    box-shadow: inset 0 0 8px #6a7b8e;
+  }
 
-.roller::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:linear-gradient(
-    90deg,
-    transparent,
-    rgba(255,255,255,.6),
-    transparent
-  );
-  animation:roll .6s linear infinite;
-}
+  /* Animations will be updated dynamically by JS */
 
-/* STATES */
-.idle .roller::after{ animation-play-state:paused; }
+  /* VALUE */
+  .value {
+    font-size: 30px;
+    text-align: center;
+    margin-top: 10px;
+  }
 
-.run .roller::after{ animation-play-state:running; }
+  /* ALARM */
+  .alarm {
+    display: none;
+    background: #7f1d1d;
+    border: 2px solid #dc2626;
+    padding: 10px;
+    font-weight: bold;
+    margin-top: 10px;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0.4;
+    }
+  }
 
-.warn{
-  box-shadow:0 0 12px #facc15 inset;
-}
+  /* TABLE */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th,
+  td {
+    border: 1px solid #334155;
+    padding: 6px;
+    text-align: center;
+  }
+  .alarm-warn {
+    background: #713f12;
+    color: #fde68a;
+  }
+  .alarm-trip {
+    background: #7f1d1d;
+    color: #fecaca;
+  }
+  .alarm-ok {
+    background: #064e3b;
+    color: #a7f3d0;
+  }
 
-.trip{
-  box-shadow:0 0 14px #dc2626 inset;
-}
-.trip .roller{
-  background:#7f1d1d;
-}
-.trip .roller::after{
-  animation-play-state:paused;
-}
+  /* Scrollable alarm table body */
+  #alarmTable {
+    display: block;
+    max-height: 180px;
+    overflow-y: auto;
+  }
 
-@keyframes roll{
-  from{background-position:0 0;}
-  to{background-position:40px 0;}
-}
+  canvas {
+    background: #020617;
+    border-radius: 6px;
+  }
 
-/* VALUE */
-.value{
-  font-size:30px;
-  text-align:center;
-  margin-top:10px;
-}
-
-/* ALARM */
-.alarm{
-  display:none;
-  background:#7f1d1d;
-  border:2px solid #dc2626;
-  padding:10px;
-  font-weight:bold;
-  margin-top:10px;
-  animation:blink 1s infinite;
-}
-@keyframes blink{50%{opacity:.4;}}
-
-/* TABLE */
-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-th,td{
-  border:1px solid #334155;
-  padding:6px;
-  text-align:center;
-}
-.alarm-warn{background:#713f12;color:#fde68a;}
-.alarm-trip{background:#7f1d1d;color:#fecaca;}
-.alarm-ok{background:#064e3b;color:#a7f3d0;}
-
-/* Make alarm table scrollable and max height */
-#alarmTable {
-  display: block;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-canvas{
-  background:#020617;
-  border-radius:6px;
-}
-
-/* LOGIN */
-#loginBox{
-  position:fixed;
-  inset:0;
-  background:#020617;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:9999;
-}
-input, button{font-size:14px;}
+  /* LOGIN */
+  #loginBox {
+    position: fixed;
+    inset: 0;
+    background: #020617;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  input,
+  button {
+    font-size: 14px;
+  }
 </style>
 </head>
 
 <body>
-
-<!-- LOGIN -->
-<div id="loginBox">
-  <div class="panel" style="width:320px;text-align:center">
-    <h3>🔐 Operator Login</h3>
-    <input id="email" type="email" placeholder="Email" style="width:100%;padding:8px;margin:6px 0">
-    <input id="password" type="password" placeholder="Password" style="width:100%;padding:8px;margin:6px 0">
-    <button onclick="login()" style="width:100%;padding:8px">Login</button>
-    <div id="loginError" style="color:#f87171;margin-top:8px"></div>
-  </div>
-</div>
-
-<div class="header">
-  <h2>🏭 Real Time Analyzer - DeurTech</h2>
-  <div>
-    Operator: <b id="userEmail">---</b>
-    <button onclick="logout()" style="margin-left:10px">Logout</button>
-  </div>
-</div>
-
-<div class="main">
-
-<!-- PROCESS -->
-<div class="panel">
-  <h3>CONVEYOR STATUS</h3>
-
-  <div class="lamps">
-    RUN <div id="lampRun" class="lamp"></div>
-    WARN <div id="lampWarn" class="lamp"></div>
-    TRIP <div id="lampTrip" class="lamp"></div>
+  <!-- LOGIN -->
+  <div id="loginBox">
+    <div class="panel" style="width:320px; text-align:center;">
+      <h3>🔐 Operator Login</h3>
+      <input id="email" type="email" placeholder="Email" style="width:100%; padding:8px; margin:6px 0" />
+      <input id="password" type="password" placeholder="Password" style="width:100%; padding:8px; margin:6px 0" />
+      <button onclick="login()" style="width:100%; padding:8px">Login</button>
+      <div id="loginError" style="color:#f87171; margin-top:8px"></div>
+    </div>
   </div>
 
-  <div class="conveyor">
-    <div id="rollerTrack" class="roller-track idle"></div>
+  <div class="header">
+    <h2>🏭 Real Time Analyzer - DeurTech</h2>
+    <div>
+      Operator: <b id="userEmail">---</b>
+      <button onclick="logout()" style="margin-left:10px">Logout</button>
+    </div>
   </div>
 
-  <div class="value">
-    <span id="vel">0.00</span> mm/s
+  <div class="main">
+    <!-- PROCESS -->
+    <div class="panel">
+      <h3>CONVEYOR STATUS</h3>
+
+      <div class="lamps">
+        RUN <div id="lampRun" class="lamp"></div>
+        WARN <div id="lampWarn" class="lamp"></div>
+        TRIP <div id="lampTrip" class="lamp"></div>
+      </div>
+
+      <div class="conveyor-loop">
+        <div id="rollerLeft" class="roller"></div>
+        <div id="belt" class="belt"></div>
+        <div id="rollerRight" class="roller"></div>
+      </div>
+
+      <div class="value">
+        <span id="vel">0.00</span> mm/s
+      </div>
+
+      <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – EXCESSIVE VIBRATION</div>
+    </div>
+
+    <!-- TREND -->
+    <div class="panel">
+      <h3>VIBRATION TREND</h3>
+      <canvas id="trend" height="220"></canvas>
+
+      <h3 style="margin-top:15px">🧾 ALARM HISTORY</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Velocity</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody id="alarmTable"></tbody>
+      </table>
+    </div>
   </div>
 
-  <div id="alarmBox" class="alarm">🚨 AUTO SHUTDOWN – EXCESSIVE VIBRATION</div>
-</div>
+  <script>
+    /* FIREBASE */
+    firebase.initializeApp({
+      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    });
+    const auth = firebase.auth();
+    const db = firebase.database();
 
-<!-- TREND -->
-<div class="panel">
-  <h3>VIBRATION TREND</h3>
-  <canvas id="trend" height="220"></canvas>
+    /* AUTH */
+    function login() {
+      auth.signInWithEmailAndPassword(email.value, password.value).catch(e => loginError.textContent = e.message);
+    }
+    function logout() {
+      auth.signOut();
+    }
 
-  <h3 style="margin-top:15px">🧾 ALARM HISTORY</h3>
-  <table>
-    <thead>
-      <tr><th>Time</th><th>Type</th><th>Velocity</th><th>Description</th></tr>
-    </thead>
-    <tbody id="alarmTable"></tbody>
-  </table>
-</div>
+    auth.onAuthStateChanged(u => {
+      loginBox.style.display = u ? "none" : "flex";
+      userEmail.textContent = u ? u.email : "---";
+    });
 
-</div>
+    /* LIMITS */
+    const WARN = 90,
+      TRIP = 100;
+    let lastState = "";
 
-<script>
-/* FIREBASE */
-firebase.initializeApp({
-  apiKey:"AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  databaseURL:"https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
-});
-const auth = firebase.auth();
-const db = firebase.database();
+    /* ELEMENTS */
+    const lampRun = document.getElementById("lampRun");
+    const lampWarn = document.getElementById("lampWarn");
+    const lampTrip = document.getElementById("lampTrip");
+    const velEl = document.getElementById("vel");
+    const alarmBox = document.getElementById("alarmBox");
+    const rollerLeft = document.getElementById("rollerLeft");
+    const rollerRight = document.getElementById("rollerRight");
+    const belt = document.getElementById("belt");
 
-/* AUTH */
-function login(){
-  auth.signInWithEmailAndPassword(email.value,password.value)
-    .catch(e=>loginError.textContent=e.message);
-}
-function logout(){ auth.signOut(); }
+    /* CHART */
+    const data = {
+      labels: [],
+      datasets: [{
+        data: [],
+        borderColor: "#22c55e",
+        pointRadius: 0
+      }]
+    };
+    const chart = new Chart(trend.getContext("2d"), {
+      type: "line",
+      data,
+      options: {
+        animation: false,
+        scales: {
+          x: {
+            type: "time"
+          },
+          y: {
+            min: 0,
+            max: 120
+          }
+        }
+      }
+    });
 
-auth.onAuthStateChanged(u=>{
-  loginBox.style.display = u ? "none" : "flex";
-  userEmail.textContent = u ? u.email : "---";
-});
+    /* LOG ALARM WITH AUTO-CLEAN */
+    function logAlarm(type, v, msg) {
+      const ref = db.ref("alarms");
+      ref.push({
+        time: Date.now(),
+        type: type,
+        value: v,
+        message: msg
+      });
+      ref.once("value", snap => {
+        const val = snap.val();
+        if (!val) return;
+        const keys = Object.keys(val);
+        if (keys.length > 50) ref.child(keys[0]).remove();
+      });
+    }
 
-/* LIMITS */
-const WARN=90, TRIP=100;
-let lastState="";
+    /* UPDATE DISPLAY AND ANIMATIONS */
+    function update(v) {
+      velEl.textContent = v.toFixed(2);
 
-/* ELEMENTS */
-const lampRun=document.getElementById("lampRun");
-const lampWarn=document.getElementById("lampWarn");
-const lampTrip=document.getElementById("lampTrip");
-const velEl=document.getElementById("vel");
-const alarmBox=document.getElementById("alarmBox");
-const rollerTrack=document.getElementById("rollerTrack");
+      // Update chart data
+      data.labels.push(new Date());
+      data.datasets[0].data.push(v);
+      if (data.labels.length > 300) {
+        data.labels.shift();
+        data.datasets[0].data.shift();
+      }
+      chart.update("none");
 
-/* CREATE ROLLERS */
-for(let i=0;i<10;i++){
-  const r=document.createElement("div");
-  r.className="roller";
-  rollerTrack.appendChild(r);
-}
+      // Reset lamps and alarms
+      lampRun.className = "lamp";
+      lampWarn.className = "lamp";
+      lampTrip.className = "lamp";
+      alarmBox.style.display = "none";
 
-/* CHART */
-const data={labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]};
-const chart=new Chart(trend.getContext("2d"),{
-  type:"line",
-  data,
-  options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:120}}}
-});
+      // Reset animations and colors
+      rollerLeft.style.animation = "none";
+      rollerRight.style.animation = "none";
+      belt.style.animation = "none";
+      rollerLeft.style.boxShadow = "inset 0 0 10px #999";
+      rollerRight.style.boxShadow = "inset 0 0 10px #999";
+      belt.style.boxShadow = "inset 0 0 8px #6a7b8e";
 
-/* LOG ALARM WITH AUTO-CLEAN */
-function logAlarm(type,v,msg){
-  const ref = db.ref("alarms");
-  ref.push({
-    time:Date.now(),
-    type:type,
-    value:v,
-    message:msg
-  });
-  ref.once("value", snap=>{
-    const val = snap.val();
-    if(!val) return;
-    const keys = Object.keys(val);
-    if(keys.length>50) ref.child(keys[0]).remove();
-  });
-}
+      // Animation speed: map velocity 0-120 to 0-1.2s duration (faster vibration = faster rotation)
+      let speed = Math.min(v / 120, 1);
+      let animDuration = (1.2 - 1.2 * speed).toFixed(2) + "s"; // From 1.2s to near 0s
 
-/* UPDATE DISPLAY */
-function update(v){
-  velEl.textContent=v.toFixed(2);
-  data.labels.push(new Date());
-  data.datasets[0].data.push(v);
-  if(data.labels.length>300){data.labels.shift();data.datasets[0].data.shift();}
-  chart.update("none");
+      if (v <= 10) {
+        // IDLE/STOP
+        lampRun.classList.add("green");
+        lastState !== "IDLE" && logAlarm("IDLE", v, "Conveyor idle");
+        lastState = "IDLE";
+        // No animation (stopped)
+      } else if (v < WARN) {
+        // RUN
+        lampRun.classList.add("green");
+        lastState !== "RUN" && logAlarm("RUN", v, "Conveyor running");
+        lastState = "RUN";
 
-  lampRun.className="lamp";
-  lampWarn.className="lamp";
-  lampTrip.className="lamp";
-  rollerTrack.className="roller-track idle";
-  alarmBox.style.display="none";
+        // Animate rollers and belt
+        rollerLeft.style.animation = `rollerSpin ${animDuration} linear infinite normal`;
+        rollerRight.style.animation = `rollerSpin ${animDuration} linear infinite reverse`;
+        belt.style.animation = `beltMove ${animDuration} linear infinite`;
 
-  if(v<=10){
-    lampRun.classList.add("green");
-    if(lastState!=="IDLE"){logAlarm("IDLE",v,"Conveyor idle");lastState="IDLE";}
-  }
-  else if(v<WARN){
-    lampRun.classList.add("green");
-    rollerTrack.classList.add("run");
-    if(lastState!=="RUN"){logAlarm("RUN",v,"Conveyor running");lastState="RUN";}
-  }
-  else if(v<TRIP){
-    lampWarn.classList.add("yellow");
-    rollerTrack.classList.add("run","warn");
-    if(lastState!=="WARN"){logAlarm("WARN",v,"High vibration");lastState="WARN";}
-  }
-  else{
-    lampTrip.classList.add("red");
-    rollerTrack.classList.add("trip");
-    alarmBox.style.display="block";
-    if(lastState!=="TRIP"){logAlarm("TRIP",v,"Auto shutdown");lastState="TRIP";}
-  }
-}
+        // Colors normal greenish
+        rollerLeft.style.boxShadow = "inset 0 0 10px #22c55e";
+        rollerRight.style.boxShadow = "inset 0 0 10px #22c55e";
+        belt.style.boxShadow = "inset 0 0 10px #22c55e";
+      } else if (v < TRIP) {
+        // WARN
+        lampWarn.classList.add("yellow");
+        lastState !== "WARN" && logAlarm("WARN", v, "High vibration warning");
+        lastState = "WARN";
 
-/* SENSOR LISTENER - FIXED */
-db.ref("vibration/velocity_rms").on("value", s => {
-  const val = s.val();
-  if (typeof val === "number") update(val);
-});
+        // Animate rollers and belt
+        rollerLeft.style.animation = `rollerSpin ${animDuration} linear infinite normal`;
+        rollerRight.style.animation = `rollerSpin ${animDuration} linear infinite reverse`;
+        belt.style.animation = `beltMove ${animDuration} linear infinite`;
 
-/* ALARM HISTORY - last 10 rows */
-db.ref("alarms").limitToLast(10).on("child_added", snap=>{
-  const a=snap.val();
-  const tr=document.createElement("tr");
-  tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
-  tr.innerHTML=`
-    <td>${new Date(a.time).toLocaleString()}</td>
-    <td>${a.type}</td>
-    <td>${a.value.toFixed(2)}</td>
-    <td>${a.message}</td>`;
-  alarmTable.prepend(tr);
-});
-</script>
+        // Colors yellow glow
+        rollerLeft.style.boxShadow = "inset 0 0 14px #facc15";
+        rollerRight.style.boxShadow = "inset 0 0 14px #facc15";
+        belt.style.boxShadow = "inset 0 0 14px #facc15";
+      } else {
+        // TRIP - Auto shutdown
+        lampTrip.classList.add("red");
+        alarmBox.style.display = "block";
+        lastState !== "TRIP" && logAlarm("TRIP", v, "Auto shutdown due to high vibration");
+        lastState = "TRIP";
 
+        // Stop animation, show red
+        rollerLeft.style.boxShadow = "inset 0 0 14px #dc2626";
+        rollerRight.style.boxShadow = "inset 0 0 14px #dc2626";
+        belt.style.boxShadow = "inset 0 0 14px #dc2626";
+      }
+    }
+
+    /* KEYFRAMES (inserted dynamically for beltMove and rollerSpin) */
+    const styleSheet = document.createElement("style");
+    styleSheet.type = "text/css";
+    styleSheet.innerText = `
+      @keyframes beltMove {
+        from { background-position: 0 0; }
+        to { background-position: 40px 0; }
+      }
+      @keyframes rollerSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(styleSheet);
+
+    /* FIREBASE SENSOR LISTENER */
+    db.ref("vibration/velocity_rms").on("value", s => {
+      const val = s.val();
+      if (typeof val === "number") update(val);
+    });
+
+    /* ALARM HISTORY - last 10 rows */
+    db.ref("alarms").limitToLast(10).on("child_added", snap => {
+      const a = snap.val();
+      const tr = document.createElement("tr");
+      tr.className = a.type === "TRIP" ? "alarm-trip" : a.type === "WARN" ? "alarm-warn" : "alarm-ok";
+      tr.innerHTML = `
+        <td>${new Date(a.time).toLocaleString()}</td>
+        <td>${a.type}</td>
+        <td>${a.value.toFixed(2)}</td>
+        <td>${a.message}</td>
+      `;
+      alarmTable.prepend(tr);
+    });
+  </script>
 </body>
 </html>
