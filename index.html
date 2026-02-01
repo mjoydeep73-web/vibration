@@ -1,255 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PlantOS – Conveyor Analytics</title>
+<meta charset="UTF-8">
+<title>PlantOS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Fonts & Icons -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
-
-<!-- Chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 <style>
-body{margin:0;font-family:'Inter',sans-serif;background:#eef2f7}
+body{margin:0;font-family:Inter,sans-serif;background:#eef2f7}
 
-/* TOP BAR */
+/* LOGIN */
+#login{
+  display:flex;align-items:center;justify-content:center;
+  height:100vh;
+}
+.login-card{
+  width:420px;background:#fff;padding:32px;
+  border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.12)
+}
+input,button{
+  width:100%;padding:10px;margin-top:14px;
+  border-radius:6px;border:1px solid #cbd5e1
+}
+button{
+  background:#0b3c8c;color:#fff;
+  font-weight:600;border:none;cursor:pointer
+}
+.error{color:#dc2626;margin-top:10px}
+
+/* DASHBOARD */
+#app{display:none}
 .topbar{
   height:60px;background:#0b3c8c;color:#fff;
   display:flex;align-items:center;justify-content:space-between;
-  padding:0 22px;font-size:18px;font-weight:600
+  padding:0 22px;font-weight:600
 }
-
-/* LAYOUT */
-.wrapper{display:flex;height:calc(100vh - 60px)}
-.sidebar{
-  width:240px;background:#0f172a;color:#cbd5e1;padding-top:20px
-}
-.sidebar div{padding:14px 22px;cursor:pointer}
-.sidebar div:hover{background:#1e293b;color:#fff}
-.main{flex:1;padding:22px;overflow:auto}
-
-/* FILTERS */
-.filters{display:flex;gap:15px;margin-bottom:15px}
-select,input[type="date"]{
-  padding:6px;border:1px solid #cbd5e1;border-radius:6px
-}
-
-/* KPI */
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:22px}
+.main{padding:22px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
 .kpi{
-  background:#fff;border-radius:8px;padding:18px;
+  background:#fff;padding:18px;border-radius:8px;
   box-shadow:0 3px 10px rgba(0,0,0,.08)
 }
-.kpi h4{margin:0;color:#64748b}
-.kpi h2{margin:8px 0 0;font-size:28px;color:#0f172a}
-
-/* CARDS */
-.card{background:#fff;border-radius:8px;padding:18px;margin-bottom:22px;
-box-shadow:0 3px 10px rgba(0,0,0,.08)}
-.card h3{margin-top:0}
-
-/* Lamps */
-.lamps{display:flex;gap:25px;margin:10px 0}
+.card{
+  background:#fff;padding:18px;border-radius:8px;
+  margin-top:22px;box-shadow:0 3px 10px rgba(0,0,0,.08)
+}
+.lamps{display:flex;gap:18px;margin:10px 0}
 .lamp{width:18px;height:18px;border-radius:50%;background:#cbd5e1}
 .green{background:#22c55e}
 .yellow{background:#facc15}
 .red{background:#dc2626}
-
-/* Conveyor */
-.conveyor{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:15px}
-.roller{width:60px;height:60px;border-radius:50%;background:#d1d5db}
-.belt{
-  flex:1;height:40px;border-radius:20px;
-  background:repeating-linear-gradient(
-    90deg,#94a3b8,#94a3b8 10px,#cbd5e1 10px,#cbd5e1 20px);
-}
-
-/* Table */
-table{width:100%;border-collapse:collapse}
-th,td{border:1px solid #e2e8f0;padding:6px;text-align:center}
 </style>
 </head>
 
 <body>
 
-<div class="topbar">
-  PlantOS – Digital Reporting System
-  <div>Operator: <b id="userEmail">---</b></div>
+<!-- LOGIN -->
+<div id="login">
+  <div class="login-card">
+    <h2>Welcome to PlantOS</h2>
+    <p>Manufacturing Intelligence Platform</p>
+
+    <input id="email" type="email" placeholder="Email address">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+
+    <div id="err" class="error"></div>
+  </div>
 </div>
 
-<div class="wrapper">
-
-  <div class="sidebar">
-    <div><i class="fa fa-chart-line"></i> Analytics</div>
-    <div><i class="fa fa-cogs"></i> Equipment</div>
-    <div><i class="fa fa-history"></i> History</div>
+<!-- DASHBOARD -->
+<div id="app">
+  <div class="topbar">
+    PlantOS – Digital Reporting
+    <div>
+      <span id="userEmail"></span>
+      &nbsp;|&nbsp;
+      <a href="#" onclick="logout()" style="color:#fff">Logout</a>
+    </div>
   </div>
 
   <div class="main">
 
-    <!-- Filters -->
-    <div class="filters">
-      <select>
-        <option>All Plants</option>
-        <option>Plant 1</option>
-      </select>
-      <input type="date">
-      <input type="date">
-    </div>
-
-    <!-- KPI -->
     <div class="kpis">
-      <div class="kpi"><h4>MTBF</h4><h2 id="mtbf">0 hrs</h2></div>
-      <div class="kpi"><h4>MTTR</h4><h2 id="mttr">0 hrs</h2></div>
+      <div class="kpi"><h4>MTBF</h4><h2 id="mtbf">–</h2></div>
+      <div class="kpi"><h4>MTTR</h4><h2 id="mttr">–</h2></div>
       <div class="kpi"><h4>Plants</h4><h2>1</h2></div>
       <div class="kpi"><h4>Equipment</h4><h2>1</h2></div>
     </div>
 
-    <!-- Conveyor -->
     <div class="card">
-      <h3>Equipment: Conveyor Belt</h3>
-
+      <h3>Conveyor Status</h3>
       <div class="lamps">
-        RUN <div id="lampRun" class="lamp"></div>
-        WARN <div id="lampWarn" class="lamp"></div>
-        TRIP <div id="lampTrip" class="lamp"></div>
+        RUN <div id="run" class="lamp"></div>
+        WARN <div id="warn" class="lamp"></div>
+        TRIP <div id="trip" class="lamp"></div>
       </div>
-
-      <div class="conveyor">
-        <div id="rollerLeft" class="roller"></div>
-        <div id="belt" class="belt"></div>
-        <div id="rollerRight" class="roller"></div>
-      </div>
-
-      <h2 style="text-align:center">
-        <span id="vel">0.00</span> mm/s
-      </h2>
-
-      <div id="alarmBox" style="display:none;color:#dc2626;font-weight:bold;text-align:center">
-        AUTO SHUTDOWN – EXCESSIVE VIBRATION
-      </div>
+      <h2><span id="vel">0.00</span> mm/s</h2>
     </div>
 
-    <!-- Trend -->
     <div class="card">
       <h3>Vibration Trend</h3>
-      <canvas id="trend" height="80"></canvas>
-    </div>
-
-    <!-- Alarms -->
-    <div class="card">
-      <h3>Alarm History</h3>
-      <table>
-        <thead><tr><th>Time</th><th>Type</th><th>Velocity</th><th>Description</th></tr></thead>
-        <tbody id="alarmTable"></tbody>
-      </table>
+      <canvas id="trend" height="90"></canvas>
     </div>
 
   </div>
 </div>
 
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+
 <script>
-// Firebase
 firebase.initializeApp({
-  apiKey:"AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-  databaseURL:"https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
+  apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+  authDomain: "vibrationstatus.firebaseapp.com",
+  databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
 });
+
+const auth=firebase.auth();
 const db=firebase.database();
 
-// Elements
-const lampRun=lampRun=document.getElementById("lampRun");
-const lampWarn=document.getElementById("lampWarn");
-const lampTrip=document.getElementById("lampTrip");
-const velEl=document.getElementById("vel");
-const alarmBox=document.getElementById("alarmBox");
-const rollerLeft=document.getElementById("rollerLeft");
-const rollerRight=document.getElementById("rollerRight");
-const belt=document.getElementById("belt");
+/* ---------- AUTH ---------- */
+auth.onAuthStateChanged(user=>{
+  if(user){
+    login.style.display="none";
+    app.style.display="block";
+    userEmail.textContent=user.email;
+  }else{
+    app.style.display="none";
+    login.style.display="flex";
+  }
+});
 
-const WARN=90,TRIP=100;
+function login(){
+  auth.signInWithEmailAndPassword(email.value,password.value)
+    .catch(e=>err.textContent=e.message);
+}
+function logout(){ auth.signOut(); }
 
-// Chart
+/* ---------- CHART ---------- */
 const data={labels:[],datasets:[{data:[],borderColor:"#22c55e"}]};
-const chart=new Chart(trend,{type:"line",data,
-options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:400}}}});
+const chart=new Chart(trend,{
+  type:"line",
+  data,
+  options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:400}}}
+});
 
-// Animation keyframes
-const style=document.createElement("style");
-style.innerHTML=`
-@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-@keyframes move{from{background-position:0}to{background-position:40px}}
-`;
-document.head.appendChild(style);
-
+/* ---------- STATUS ---------- */
+const WARN=90,TRIP=100;
 function update(v){
-  velEl.textContent=v.toFixed(2);
-
-  // chart
+  vel.textContent=v.toFixed(2);
   data.labels.push(new Date());
   data.datasets[0].data.push(v);
   if(data.labels.length>200){data.labels.shift();data.datasets[0].data.shift();}
   chart.update();
 
-  // lamps
-  lampRun.className="lamp";
-  lampWarn.className="lamp";
-  lampTrip.className="lamp";
-  alarmBox.style.display="none";
-
-  if(v<10){lampRun.classList.add("green")}
-  else if(v<WARN){lampRun.classList.add("green")}
-  else if(v<TRIP){lampWarn.classList.add("yellow")}
-  else{lampTrip.classList.add("red");alarmBox.style.display="block"}
-
-  // animation speed
-  let speed=Math.min(v/120,1);
-  let duration=(1.2-speed).toFixed(2)+"s";
-  rollerLeft.style.animation=`spin ${duration} linear infinite`;
-  rollerRight.style.animation=`spin ${duration} linear infinite reverse`;
-  belt.style.animation=`move ${duration} linear infinite`;
+  run.className=warn.className=trip.className="lamp";
+  if(v<WARN) run.classList.add("green");
+  else if(v<TRIP) warn.classList.add("yellow");
+  else trip.classList.add("red");
 }
 
-// Firebase listener
 db.ref("vibration/velocity_rms").on("value",s=>{
-  const v=s.val();
-  if(typeof v==="number") update(v);
+  if(typeof s.val()==="number") update(s.val());
 });
 
-// Alarm table + MTBF/MTTR
-let lastTrip=null,repairTotal=0,trips=0;
-db.ref("alarms").limitToLast(20).on("child_added",snap=>{
-  const a=snap.val();
-  const tr=document.createElement("tr");
-  tr.innerHTML=`<td>${new Date(a.time).toLocaleString()}</td>
-  <td>${a.type}</td>
-  <td>${a.value.toFixed(2)}</td>
-  <td>${a.message}</td>`;
-  alarmTable.prepend(tr);
+/* ---------- MTBF / MTTR (ISO) ---------- */
+let lastRun=null,lastTrip=null;
+let uptime=0,downtime=0,failures=0;
 
-  if(a.type==="TRIP"){
-    trips++;
-    if(lastTrip){
-      const mtbf=(a.time-lastTrip)/3600000;
-      mtbfEl=document.getElementById("mtbf");
-      mtbfEl.textContent=mtbf.toFixed(1)+" hrs";
-    }
-    lastTrip=a.time;
+db.ref("events").on("child_added",snap=>{
+  const e=snap.val();
+
+  if(e.type==="RUN") lastRun=e.time;
+
+  if(e.type==="TRIP" && lastRun){
+    failures++;
+    uptime += e.time-lastRun;
+    lastTrip=e.time;
   }
-  if(a.type==="RUN" && lastTrip){
-    const mttr=(a.time-lastTrip)/3600000;
-    repairTotal+=mttr;
-    document.getElementById("mttr").textContent=(repairTotal/trips).toFixed(1)+" hrs";
+
+  if(e.type==="REPAIR" && lastTrip){
+    downtime += e.time-lastTrip;
+  }
+
+  if(failures>0){
+    mtbf.textContent=(uptime/3600000/failures).toFixed(1)+" hrs";
+    mttr.textContent=(downtime/3600000/failures).toFixed(1)+" hrs";
   }
 });
 </script>
+
 </body>
 </html>
