@@ -74,6 +74,23 @@ button{
 </div>
 
 <!-- DASHBOARD -->
+<div id="app" style="display:none;">
+  <div class="topbar">
+    PlantOS – Digital Reporting
+    <div>
+      <span id="userEmail"></span>
+      &nbsp;|&nbsp;
+      <a href="#" onclick="logout()" style="color:#fff">Logout</a>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Add your dashboard elements here -->
+  </div>
+</div>
+
+
+<!-- DASHBOARD -->
 <div id="app">
   <div class="topbar">
     PlantOS – Digital Reporting
@@ -126,16 +143,20 @@ const auth=firebase.auth();
 const db=firebase.database();
 
 /* ---------- AUTH ---------- */
-auth.onAuthStateChanged(user=>{
-  if(user){
-    login.style.display="none";
-    app.style.display="block";
-    userEmail.textContent=user.email;
-  }else{
-    app.style.display="none";
-    login.style.display="flex";
+auth.onAuthStateChanged(user => {
+  const login = document.getElementById("login");
+  const app = document.getElementById("app");
+
+  if (user) {
+    login.style.display = "none";  // Hide the login form
+    app.style.display = "block";   // Show the dashboard
+    document.getElementById("userEmail").textContent = user.email;
+  } else {
+    app.style.display = "none";    // Hide the dashboard
+    login.style.display = "flex";  // Show the login form
   }
 });
+
 
 function login(){
   auth.signInWithEmailAndPassword(email.value,password.value)
