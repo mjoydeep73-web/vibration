@@ -33,7 +33,7 @@ button{
 .error{color:#dc2626;margin-top:10px}
 
 /* DASHBOARD */
-#app{display:none}
+#app{display:none;}
 .topbar{
   height:60px;background:#0b3c8c;color:#fff;
   display:flex;align-items:center;justify-content:space-between;
@@ -75,23 +75,6 @@ button{
 
 <!-- DASHBOARD -->
 <div id="app" style="display:none;">
-  <div class="topbar">
-    PlantOS – Digital Reporting
-    <div>
-      <span id="userEmail"></span>
-      &nbsp;|&nbsp;
-      <a href="#" onclick="logout()" style="color:#fff">Logout</a>
-    </div>
-  </div>
-
-  <div class="main">
-    <!-- Add your dashboard elements here -->
-  </div>
-</div>
-
-
-<!-- DASHBOARD -->
-<div id="app">
   <div class="topbar">
     PlantOS – Digital Reporting
     <div>
@@ -157,15 +140,15 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-
 function login(){
   auth.signInWithEmailAndPassword(email.value,password.value)
     .catch(e=>err.textContent=e.message);
 }
+
 function logout(){ auth.signOut(); }
 
 /* ---------- CHART ---------- */
-const data={labels:[],datasets:[{data:[],borderColor:"#22c55e"}]};
+const data={labels:[],datasets:[{data:[],borderColor:"#22c55e"}]} ;
 const chart=new Chart(trend,{
   type:"line",
   data,
