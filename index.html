@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Infinite Uptime Dashboard</title>
+<title>Infinite Uptime – Conveyor Analytics</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
@@ -13,14 +13,8 @@
 
 <style>
 body{margin:0;font-family:Segoe UI;background:#0f172a;color:#e5e7eb}
-#loginPage{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center}
-.loginBox{width:360px;padding:30px;border-radius:10px;background:#f8fafc;box-shadow:0 0 30px #0003;text-align:center}
-.loginBox input{width:100%;padding:10px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px}
-.loginBox button{width:100%;padding:10px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:16px}
-
-#app{display:none}
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:230px;background:#0b2239;padding:20px}
-.sidebar h2{color:#fff;margin-bottom:30px}
+.sidebar h2{color:#fff}
 .sidebar a{display:block;color:#94a3b8;margin:14px 0;cursor:pointer}
 .sidebar a:hover{color:#fff}
 .main{margin-left:250px;padding:20px}
@@ -36,6 +30,15 @@ body{margin:0;font-family:Segoe UI;background:#0f172a;color:#e5e7eb}
 @keyframes rollerSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{border:1px solid #334155;padding:6px;text-align:center;font-size:13px}
+
+.alarm-trip{background:#3b0a0a;color:#fecaca}
+.alarm-warn{background:#3a2e0a;color:#fde68a}
+.alarm-ok{background:#0a2e1a;color:#bbf7d0}
+
+#loginPage{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center}
+.loginBox{width:360px;padding:30px;border-radius:10px;background:#f8fafc;box-shadow:0 0 30px #0003;text-align:center}
+.loginBox input{width:100%;padding:10px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px}
+.loginBox button{width:100%;padding:10px;background:#0284c7;color:#fff;border:none;border-radius:6px;font-size:16px}
 </style>
 </head>
 <body>
@@ -51,7 +54,6 @@ th,td{border:1px solid #334155;padding:6px;text-align:center;font-size:13px}
   </div>
 </div>
 
-<!-- APP -->
 <div id="app">
   <div class="sidebar">
     <h2>INFINITE UPTIME</h2>
@@ -62,6 +64,7 @@ th,td{border:1px solid #334155;padding:6px;text-align:center;font-size:13px}
   </div>
 
   <div class="main">
+
     <!-- ANALYTICS -->
     <div id="analytics" class="page active">
       <h2>Conveyor Analytics</h2>
@@ -99,6 +102,7 @@ th,td{border:1px solid #334155;padding:6px;text-align:center;font-size:13px}
         <tbody id="alarmTable"></tbody>
       </table>
     </div>
+
   </div>
 </div>
 
@@ -109,7 +113,7 @@ firebase.initializeApp({
 });
 const db=firebase.database(),auth=firebase.auth();
 
-const vel=document.getElementById("vel");
+const vel=vel=document.getElementById("vel");
 const rpmText=document.getElementById("rpmText");
 const stateText=document.getElementById("stateText");
 const belt=document.getElementById("belt");
@@ -118,6 +122,7 @@ const rollerRight=document.getElementById("rollerRight");
 const lampRun=document.getElementById("lampRun");
 const lampWarn=document.getElementById("lampWarn");
 const lampTrip=document.getElementById("lampTrip");
+const alarmTable=document.getElementById("alarmTable");
 
 function stopAnim(){
  belt.style.animation="none";
@@ -160,6 +165,21 @@ db.ref("vibration/velocity_rms").on("value",s=>{
  else if(v<90){stateText.textContent="RUN";animate(v);lampRun.classList.add("green");}
  else if(v<100){stateText.textContent="WARN";stopAnim();lampWarn.classList.add("yellow");}
  else{stateText.textContent="TRIP";stopAnim();lampTrip.classList.add("red");}
+});
+
+/* Alarm table */
+db.ref("alarms").limitToLast(10).on("child_added",snap=>{
+ const a=snap.val();
+ if(!a) return;
+ const tr=document.createElement("tr");
+ tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
+ tr.innerHTML=`
+ <td>${new Date(a.time).toLocaleString()}</td>
+ <td>${a.type}</td>
+ <td>${Number(a.value).toFixed(2)}</td>
+ <td>${a.message}</td>`;
+ alarmTable.prepend(tr);
+ while(alarmTable.rows.length>10){alarmTable.deleteRow(-1);}
 });
 
 function login(){auth.signInWithEmailAndPassword(email.value,pass.value).catch(e=>err.textContent=e.message);}
