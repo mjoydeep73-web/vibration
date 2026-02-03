@@ -1,204 +1,271 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<title>PlantOS</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <title>PlantOS Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, sans-serif;
+      background: #eef2f7;
+    }
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    /* DASHBOARD */
+    #app {
+      display: none;
+    }
 
-<style>
-body{margin:0;font-family:Inter,sans-serif;background:#eef2f7}
+    .topbar {
+      height: 60px;
+      background: #0b3c8c;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      font-weight: 600;
+    }
 
-/* LOGIN */
-#login{
-  display:flex;align-items:center;justify-content:center;
-  height:100vh;
-}
-.login-card{
-  width:420px;background:#fff;padding:32px;
-  border-radius:10px;
-  box-shadow:0 10px 30px rgba(0,0,0,.12)
-}
-input,button{
-  width:100%;padding:10px;margin-top:14px;
-  border-radius:6px;border:1px solid #cbd5e1
-}
-button{
-  background:#0b3c8c;color:#fff;
-  font-weight:600;border:none;cursor:pointer
-}
-.error{color:#dc2626;margin-top:10px}
+    .main {
+      padding: 22px;
+    }
 
-/* DASHBOARD */
-#app{display:none;}
-.topbar{
-  height:60px;background:#0b3c8c;color:#fff;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 22px;font-weight:600
-}
-.main{padding:22px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-.kpi{
-  background:#fff;padding:18px;border-radius:8px;
-  box-shadow:0 3px 10px rgba(0,0,0,.08)
-}
-.card{
-  background:#fff;padding:18px;border-radius:8px;
-  margin-top:22px;box-shadow:0 3px 10px rgba(0,0,0,.08)
-}
-.lamps{display:flex;gap:18px;margin:10px 0}
-.lamp{width:18px;height:18px;border-radius:50%;background:#cbd5e1}
-.green{background:#22c55e}
-.yellow{background:#facc15}
-.red{background:#dc2626}
-</style>
+    .card {
+      background: #fff;
+      padding: 18px;
+      border-radius: 8px;
+      margin-top: 22px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .08);
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .kpi {
+      background: #fff;
+      padding: 18px;
+      border-radius: 8px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .08);
+    }
+
+    .lamps {
+      display: flex;
+      gap: 18px;
+      margin: 10px 0;
+    }
+
+    .lamp {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #cbd5e1;
+    }
+
+    .green {
+      background: #22c55e;
+    }
+
+    .yellow {
+      background: #facc15;
+    }
+
+    .red {
+      background: #dc2626;
+    }
+
+    .details {
+      margin-top: 20px;
+    }
+
+    .details div {
+      margin-bottom: 10px;
+    }
+
+    .chart-container {
+      margin-top: 20px;
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-<div id="login">
-  <div class="login-card">
-    <h2>Welcome to PlantOS</h2>
-    <p>Manufacturing Intelligence Platform</p>
-
-    <input id="email" type="email" placeholder="Email address">
-    <input id="password" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-
-    <div id="err" class="error"></div>
-  </div>
-</div>
-
-<!-- DASHBOARD -->
-<div id="app" style="display:none;">
-  <div class="topbar">
-    PlantOS – Digital Reporting
-    <div>
-      <span id="userEmail"></span>
-      &nbsp;|&nbsp;
-      <a href="#" onclick="logout()" style="color:#fff">Logout</a>
+  <!-- LOGIN -->
+  <div id="login" style="display: flex; align-items: center; justify-content: center; height: 100vh;">
+    <div class="login-card" style="width: 420px; background: #fff; padding: 32px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.12)">
+      <h2>Welcome to PlantOS</h2>
+      <p>Manufacturing Intelligence Platform</p>
+      <input id="email" type="email" placeholder="Email address">
+      <input id="password" type="password" placeholder="Password">
+      <button onclick="login()" style="width: 100%; padding: 10px; margin-top: 14px; background: #0b3c8c; color: white; border: none; border-radius: 6px;">Login</button>
+      <div id="err" class="error" style="color: #dc2626; margin-top: 10px;"></div>
     </div>
   </div>
 
-  <div class="main">
-
-    <div class="kpis">
-      <div class="kpi"><h4>MTBF</h4><h2 id="mtbf">–</h2></div>
-      <div class="kpi"><h4>MTTR</h4><h2 id="mttr">–</h2></div>
-      <div class="kpi"><h4>Plants</h4><h2>1</h2></div>
-      <div class="kpi"><h4>Equipment</h4><h2>1</h2></div>
-    </div>
-
-    <div class="card">
-      <h3>Conveyor Status</h3>
-      <div class="lamps">
-        RUN <div id="run" class="lamp"></div>
-        WARN <div id="warn" class="lamp"></div>
-        TRIP <div id="trip" class="lamp"></div>
+  <!-- DASHBOARD -->
+  <div id="app" style="display: none;">
+    <div class="topbar">
+      PlantOS – Digital Reporting
+      <div>
+        <span id="userEmail"></span>
+        &nbsp;|&nbsp;
+        <a href="#" onclick="logout()" style="color:#fff">Logout</a>
       </div>
-      <h2><span id="vel">0.00</span> mm/s</h2>
     </div>
 
-    <div class="card">
-      <h3>Vibration Trend</h3>
-      <canvas id="trend" height="90"></canvas>
-    </div>
+    <div class="main">
+      <!-- KPI section -->
+      <div class="kpis">
+        <div class="kpi">
+          <h4>Speed</h4>
+          <h2 id="speed">0.00 mm/s</h2>
+        </div>
+        <div class="kpi">
+          <h4>Frequency</h4>
+          <h2 id="frequency">0.00 Hz</h2>
+        </div>
+        <div class="kpi">
+          <h4>Moisture</h4>
+          <h2 id="moisture">10%</h2>
+        </div>
+        <div class="kpi">
+          <h4>Material</h4>
+          <h2 id="material">Cement</h2>
+        </div>
+      </div>
 
+      <!-- Conveyor Status -->
+      <div class="card">
+        <h3>Conveyor Status</h3>
+        <div class="lamps">
+          RUN <div id="run" class="lamp"></div>
+          WARN <div id="warn" class="lamp"></div>
+          TRIP <div id="trip" class="lamp"></div>
+        </div>
+        <h2><span id="vel">0.00</span> mm/s</h2>
+      </div>
+
+      <!-- Equipment Details -->
+      <div class="card">
+        <h3>Equipment Details</h3>
+        <div class="details">
+          <div><strong>Equipment Name:</strong> <span id="equipmentName">Conveyor Model XYZ</span></div>
+          <div><strong>Model:</strong> <span id="equipmentModel">XYZ-123</span></div>
+          <div><strong>Plant Name:</strong> <span id="plantName">Plant A</span></div>
+          <div><strong>Location:</strong> <span id="location">Sector 7</span></div>
+          <div><strong>Conveyor Length:</strong> <span id="conveyorLength">100 meters</span></div>
+        </div>
+      </div>
+
+      <!-- Trend Charts -->
+      <div class="card chart-container">
+        <h3>Speed Trend</h3>
+        <canvas id="speedTrend" height="90"></canvas>
+      </div>
+    </div>
   </div>
-</div>
 
-<!-- FIREBASE -->
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
 
-<script>
-firebase.initializeApp({
+  <script>
+    firebase.initializeApp({
       apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
       databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
     });
 
-const auth=firebase.auth();
-const db=firebase.database();
+    const auth = firebase.auth();
+    const db = firebase.database();
 
-/* ---------- AUTH ---------- */
-auth.onAuthStateChanged(user => {
-  const login = document.getElementById("login");
-  const app = document.getElementById("app");
+    // Initialize the chart data for speed
+    const speedData = {
+      labels: [], // Timestamps for X-axis
+      datasets: [{
+        label: "Speed (mm/s)",
+        data: [], // Values of velocity_rms
+        borderColor: "#22c55e",
+        fill: false
+      }]
+    };
 
-  if (user) {
-    login.style.display = "none";  // Hide the login form
-    app.style.display = "block";   // Show the dashboard
-    document.getElementById("userEmail").textContent = user.email;
-  } else {
-    app.style.display = "none";    // Hide the dashboard
-    login.style.display = "flex";  // Show the login form
-  }
-});
+    const speedChart = new Chart(document.getElementById("speedTrend"), {
+      type: "line",
+      data: speedData,
+      options: {
+        animation: false,
+        scales: {
+          x: {
+            type: "time",
+            time: {
+              unit: 'second'
+            }
+          },
+          y: {
+            min: 0
+          }
+        }
+      }
+    });
 
-function login(){
-  auth.signInWithEmailAndPassword(email.value,password.value)
-    .catch(e=>err.textContent=e.message);
-}
+    /* ---------- AUTH ---------- */
+    auth.onAuthStateChanged(user => {
+      const login = document.getElementById("login");
+      const app = document.getElementById("app");
 
-function logout(){ auth.signOut(); }
+      if (user) {
+        login.style.display = "none";  // Hide login form
+        app.style.display = "block";   // Show dashboard
+        document.getElementById("userEmail").textContent = user.email;
+      } else {
+        app.style.display = "none";    // Hide dashboard
+        login.style.display = "flex";  // Show login form
+      }
+    });
 
-/* ---------- CHART ---------- */
-const data={labels:[],datasets:[{data:[],borderColor:"#22c55e"}]} ;
-const chart=new Chart(trend,{
-  type:"line",
-  data,
-  options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:400}}}
-});
+    function login() {
+      auth.signInWithEmailAndPassword(email.value, password.value)
+        .catch(e => err.textContent = e.message);
+    }
 
-/* ---------- STATUS ---------- */
-const WARN=90,TRIP=100;
-function update(v){
-  vel.textContent=v.toFixed(2);
-  data.labels.push(new Date());
-  data.datasets[0].data.push(v);
-  if(data.labels.length>200){data.labels.shift();data.datasets[0].data.shift();}
-  chart.update();
+    function logout() {
+      auth.signOut();
+    }
 
-  run.className=warn.className=trip.className="lamp";
-  if(v<WARN) run.classList.add("green");
-  else if(v<TRIP) warn.classList.add("yellow");
-  else trip.classList.add("red");
-}
+    // Fetch the velocity_rms data and update the chart
+    db.ref("vibration").on("child_added", snapshot => {
+      const data = snapshot.val();
+      
+      if (data && data.velocity_rms) {
+        const timestamp = new Date(data.timestamp);
+        const velocity_rms = data.velocity_rms;
 
-db.ref("vibration/velocity_rms").on("value",s=>{
-  if(typeof s.val()==="number") update(s.val());
-});
+        // Update the KPI section
+        document.getElementById('speed').textContent = `${velocity_rms} mm/s`;
 
-/* ---------- MTBF / MTTR (ISO) ---------- */
-let lastRun=null,lastTrip=null;
-let uptime=0,downtime=0,failures=0;
-
-db.ref("events").on("child_added",snap=>{
-  const e=snap.val();
-
-  if(e.type==="RUN") lastRun=e.time;
-
-  if(e.type==="TRIP" && lastRun){
-    failures++;
-    uptime += e.time-lastRun;
-    lastTrip=e.time;
-  }
-
-  if(e.type==="REPAIR" && lastTrip){
-    downtime += e.time-lastTrip;
-  }
-
-  if(failures>0){
-    mtbf.textContent=(uptime/3600000/failures).toFixed(1)+" hrs";
-    mttr.textContent=(downtime/3600000/failures).toFixed(1)+" hrs";
-  }
-});
-</script>
+        // Add new data to the chart
+        speedData.labels.push(timestamp);
+        speedData.datasets[0].data.push(velocity_rms);
+        
+        // Keep chart data under control by limiting the number of data points
+        if (speedData.labels.length > 200) {
+          speedData.labels.shift();
+          speedData.datasets[0].data.shift();
+        }
+        
+        // Update the chart
+        speedChart.update();
+      }
+    });
+  </script>
 
 </body>
+
 </html>
