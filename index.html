@@ -1,271 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <title>PlantOS Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: Inter, sans-serif;
-      background: #eef2f7;
-    }
+<meta charset="UTF-8"/>
+<title>DeurTech PlantOS – Digital Reporting</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-    /* DASHBOARD */
-    #app {
-      display: none;
-    }
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
-    .topbar {
-      height: 60px;
-      background: #0b3c8c;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 22px;
-      font-weight: 600;
-    }
+<style>
+body{margin:0;background:#0b0f14;color:#e5e7eb;font-family:Segoe UI}
 
-    .main {
-      padding: 22px;
-    }
+.strip{display:flex;gap:10px;margin:8px}
+.box{
+  flex:1;background:#0f172a;border:2px solid #334155;
+  border-radius:6px;padding:8px;text-align:center;font-size:13px
+}
+.statusStrip .box{background:#1e293b}
+.equipStrip .box{background:#0b2239}
 
-    .card {
-      background: #fff;
-      padding: 18px;
-      border-radius: 8px;
-      margin-top: 22px;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, .08);
-    }
+.processStrip{
+  align-items:center;justify-content:space-between;
+  background:#111827;border:2px solid #334155;
+  border-radius:6px;padding:12px;margin:8px
+}
+.freqStrip{
+  background:#111827;border:2px solid #334155;
+  border-radius:6px;padding:10px;margin:8px
+}
 
-    .kpis {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
-    }
+.lamp{width:18px;height:18px;border-radius:50%;background:#374151;display:inline-block;margin-left:6px}
+.green{background:#22c55e}.yellow{background:#facc15}.red{background:#dc2626}.white{background:#e5e7eb}
 
-    .kpi {
-      background: #fff;
-      padding: 18px;
-      border-radius: 8px;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, .08);
-    }
+.conveyor-loop{display:flex;align-items:center;gap:12px;justify-content:center}
+.roller{width:60px;height:60px;background:#bbb;border-radius:50%}
+.belt{
+  width:300px;height:40px;border-radius:20px;
+  background:repeating-linear-gradient(90deg,#8b9cae,#8b9cae 10px,#a1b1c4 10px,#a1b1c4 20px);
+  background-size:40px 40px
+}
 
-    .lamps {
-      display: flex;
-      gap: 18px;
-      margin: 10px 0;
-    }
+@keyframes beltMove{from{background-position:0 0}to{background-position:40px 0}}
+@keyframes rollerSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
-    .lamp {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #cbd5e1;
-    }
+.alarm-trip{background:#3b0a0a;color:#fecaca}
+.alarm-warn{background:#3a2e0a;color:#fde68a}
+.alarm-ok{background:#0a2e1a;color:#bbf7d0}
 
-    .green {
-      background: #22c55e;
-    }
-
-    .yellow {
-      background: #facc15;
-    }
-
-    .red {
-      background: #dc2626;
-    }
-
-    .details {
-      margin-top: 20px;
-    }
-
-    .details div {
-      margin-bottom: 10px;
-    }
-
-    .chart-container {
-      margin-top: 20px;
-    }
-  </style>
+#loginBox{position:fixed;inset:0;background:#020617;display:flex;align-items:center;justify-content:center;z-index:9999}
+</style>
 </head>
 
 <body>
 
-  <!-- LOGIN -->
-  <div id="login" style="display: flex; align-items: center; justify-content: center; height: 100vh;">
-    <div class="login-card" style="width: 420px; background: #fff; padding: 32px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.12)">
-      <h2>Welcome to PlantOS</h2>
-      <p>Manufacturing Intelligence Platform</p>
-      <input id="email" type="email" placeholder="Email address">
-      <input id="password" type="password" placeholder="Password">
-      <button onclick="login()" style="width: 100%; padding: 10px; margin-top: 14px; background: #0b3c8c; color: white; border: none; border-radius: 6px;">Login</button>
-      <div id="err" class="error" style="color: #dc2626; margin-top: 10px;"></div>
-    </div>
+<!-- LOGIN -->
+<div id="loginBox">
+  <div class="box" style="width:320px">
+    <h3>🔐 Operator Login</h3>
+    <input id="email" type="email" placeholder="Email" style="width:100%;padding:8px;margin:6px 0">
+    <input id="password" type="password" placeholder="Password" style="width:100%;padding:8px;margin:6px 0">
+    <button onclick="login()" style="width:100%;padding:8px">Login</button>
+    <div id="loginError" style="color:#f87171"></div>
+  </div>
+</div>
+
+<!-- STATUS STRIP -->
+<div class="strip statusStrip">
+  <div class="box">STOP TIME<br><b id="stopTime">--:--</b></div>
+  <div class="box">START TIME<br><b id="startTime">--:--</b></div>
+  <div class="box">RUNNING HOURS<br><b id="runHr">0 Hr</b></div>
+  <div class="box">LAST ALARM<br><b id="lastAlarm">--</b></div>
+</div>
+
+<!-- EQUIPMENT STRIP -->
+<div class="strip equipStrip">
+  <div class="box">PLANT<br><b>S31B</b></div>
+  <div class="box">DEVICE MODEL<br><b>DT000123</b></div>
+  <div class="box">UNIT NAME<br><b>Conveyor-01</b></div>
+  <div class="box">LOCATION<br><b>Crusher</b></div>
+  <div class="box">LENGTH<br><b>100 m</b></div>
+  <div class="box">BELT GRADE<br><b>M24</b></div>
+  <div class="box">MOISTURE<br><b>10%</b></div>
+  <div class="box">MATERIAL<br><b>Limestone</b></div>
+</div>
+
+<!-- PROCESS STRIP -->
+<div class="processStrip">
+  <div>
+    RUN <div id="lampRun" class="lamp"></div><br><br>
+    WARN <div id="lampWarn" class="lamp"></div><br><br>
+    TRIP <div id="lampTrip" class="lamp"></div>
   </div>
 
-  <!-- DASHBOARD -->
-  <div id="app" style="display: none;">
-    <div class="topbar">
-      PlantOS – Digital Reporting
-      <div>
-        <span id="userEmail"></span>
-        &nbsp;|&nbsp;
-        <a href="#" onclick="logout()" style="color:#fff">Logout</a>
-      </div>
-    </div>
-
-    <div class="main">
-      <!-- KPI section -->
-      <div class="kpis">
-        <div class="kpi">
-          <h4>Speed</h4>
-          <h2 id="speed">0.00 mm/s</h2>
-        </div>
-        <div class="kpi">
-          <h4>Frequency</h4>
-          <h2 id="frequency">0.00 Hz</h2>
-        </div>
-        <div class="kpi">
-          <h4>Moisture</h4>
-          <h2 id="moisture">10%</h2>
-        </div>
-        <div class="kpi">
-          <h4>Material</h4>
-          <h2 id="material">Cement</h2>
-        </div>
-      </div>
-
-      <!-- Conveyor Status -->
-      <div class="card">
-        <h3>Conveyor Status</h3>
-        <div class="lamps">
-          RUN <div id="run" class="lamp"></div>
-          WARN <div id="warn" class="lamp"></div>
-          TRIP <div id="trip" class="lamp"></div>
-        </div>
-        <h2><span id="vel">0.00</span> mm/s</h2>
-      </div>
-
-      <!-- Equipment Details -->
-      <div class="card">
-        <h3>Equipment Details</h3>
-        <div class="details">
-          <div><strong>Equipment Name:</strong> <span id="equipmentName">Conveyor Model XYZ</span></div>
-          <div><strong>Model:</strong> <span id="equipmentModel">XYZ-123</span></div>
-          <div><strong>Plant Name:</strong> <span id="plantName">Plant A</span></div>
-          <div><strong>Location:</strong> <span id="location">Sector 7</span></div>
-          <div><strong>Conveyor Length:</strong> <span id="conveyorLength">100 meters</span></div>
-        </div>
-      </div>
-
-      <!-- Trend Charts -->
-      <div class="card chart-container">
-        <h3>Speed Trend</h3>
-        <canvas id="speedTrend" height="90"></canvas>
-      </div>
-    </div>
+  <div class="conveyor-loop">
+    <div id="rollerLeft" class="roller"></div>
+    <div id="belt" class="belt"></div>
+    <div id="rollerRight" class="roller"></div>
   </div>
 
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+  <div style="text-align:center">
+    SPEED<br><b id="vel">0.00 mm/s</b><br><br>
+    RPM<br><b id="rpmText">0</b><br><br>
+    STATE<br><b id="stateText">IDLE</b>
+  </div>
+</div>
 
-  <script>
-    firebase.initializeApp({
-      apiKey: "AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
-      databaseURL: "https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    });
+<!-- FREQUENCY STRIP -->
+<div class="freqStrip">
+  <h3>FREQUENCY – Vibration Trend</h3>
+  <canvas id="trend" height="120"></canvas>
 
-    const auth = firebase.auth();
-    const db = firebase.database();
+  <h3>Alarm History</h3>
+  <table width="100%" border="1" style="border-collapse:collapse;font-size:12px">
+    <thead><tr><th>Time</th><th>Type</th><th>Value</th><th>Msg</th></tr></thead>
+    <tbody id="alarmTable"></tbody>
+  </table>
+</div>
 
-    // Initialize the chart data for speed
-    const speedData = {
-      labels: [], // Timestamps for X-axis
-      datasets: [{
-        label: "Speed (mm/s)",
-        data: [], // Values of velocity_rms
-        borderColor: "#22c55e",
-        fill: false
-      }]
-    };
+<script>
+firebase.initializeApp({
+ apiKey:"AIzaSyAcb0R8GyyLdSoo3R3jyXtSI6oqy7N-51E",
+ databaseURL:"https://vibrationstatus-default-rtdb.asia-southeast1.firebasedatabase.app/"
+});
+const db=firebase.database(),auth=firebase.auth();
 
-    const speedChart = new Chart(document.getElementById("speedTrend"), {
-      type: "line",
-      data: speedData,
-      options: {
-        animation: false,
-        scales: {
-          x: {
-            type: "time",
-            time: {
-              unit: 'second'
-            }
-          },
-          y: {
-            min: 0
-          }
-        }
-      }
-    });
+function login(){auth.signInWithEmailAndPassword(email.value,password.value).catch(e=>loginError.textContent=e.message)}
+auth.onAuthStateChanged(u=>loginBox.style.display=u?"none":"flex")
 
-    /* ---------- AUTH ---------- */
-    auth.onAuthStateChanged(user => {
-      const login = document.getElementById("login");
-      const app = document.getElementById("app");
+const WARN=90,TRIP=100;
+let lastState="",startTs=null,runInterval=null;
 
-      if (user) {
-        login.style.display = "none";  // Hide login form
-        app.style.display = "block";   // Show dashboard
-        document.getElementById("userEmail").textContent = user.email;
-      } else {
-        app.style.display = "none";    // Hide dashboard
-        login.style.display = "flex";  // Show login form
-      }
-    });
+const chart=new Chart(trend.getContext("2d"),{
+ type:"line",
+ data:{labels:[],datasets:[{data:[],borderColor:"#22c55e",pointRadius:0}]},
+ options:{animation:false,scales:{x:{type:"time"},y:{min:0,max:400}}}
+});
 
-    function login() {
-      auth.signInWithEmailAndPassword(email.value, password.value)
-        .catch(e => err.textContent = e.message);
-    }
+function logAlarm(type,v,msg){
+ const ref=db.ref("alarms");
+ ref.push({time:Date.now(),type,value:v,message:msg});
+ ref.orderByChild("time").limitToFirst(1).once("value",s=>s.forEach(c=>c.ref.remove()));
+ lastAlarm.textContent=type+" @ "+v.toFixed(1);
+}
 
-    function logout() {
-      auth.signOut();
-    }
+function updateRunHours(){
+ if(!startTs)return;
+ const hr=((Date.now()-startTs)/3600000).toFixed(2);
+ runHr.textContent=hr+" Hr";
+}
 
-    // Fetch the velocity_rms data and update the chart
-    db.ref("vibration").on("child_added", snapshot => {
-      const data = snapshot.val();
-      
-      if (data && data.velocity_rms) {
-        const timestamp = new Date(data.timestamp);
-        const velocity_rms = data.velocity_rms;
+function update(v){
+ vel.textContent=v.toFixed(2)+" mm/s";
+ chart.data.labels.push(new Date());
+ chart.data.datasets[0].data.push(v);
+ if(chart.data.labels.length>300){
+   chart.data.labels.shift();
+   chart.data.datasets[0].data.shift();
+ }
+ chart.update("none");
 
-        // Update the KPI section
-        document.getElementById('speed').textContent = `${velocity_rms} mm/s`;
+ let speed=Math.min(v/120,1);
+ let dur=Math.max(0.25,1.2-1.2*speed);
+ let rpm=Math.round(60/dur);
+ rpmText.textContent=rpm;
 
-        // Add new data to the chart
-        speedData.labels.push(timestamp);
-        speedData.datasets[0].data.push(velocity_rms);
-        
-        // Keep chart data under control by limiting the number of data points
-        if (speedData.labels.length > 200) {
-          speedData.labels.shift();
-          speedData.datasets[0].data.shift();
-        }
-        
-        // Update the chart
-        speedChart.update();
-      }
-    });
-  </script>
+ rollerLeft.style.animation=`rollerSpin ${dur}s linear infinite`;
+ rollerRight.style.animation=`rollerSpin ${dur}s linear infinite reverse`;
+ belt.style.animation=`beltMove ${dur}s linear infinite`;
 
+ lampRun.className="lamp";lampWarn.className="lamp";lampTrip.className="lamp";
+
+ if(v<=10){
+  stateText.textContent="IDLE";
+  rpmText.textContent=0;
+  rollerLeft.style.animation="none";
+  rollerRight.style.animation="none";
+  belt.style.animation="none";
+  lampRun.classList.add("white");
+  if(lastState!=="IDLE"){
+    stopTime.textContent=new Date().toLocaleTimeString();
+    clearInterval(runInterval);
+    logAlarm("IDLE",v,"Stopped");
+    lastState="IDLE";
+  }
+ }
+ else if(v<WARN){
+  stateText.textContent="RUN";
+  lampRun.classList.add("green");
+  if(lastState!=="RUN"){
+    startTs=Date.now();
+    startTime.textContent=new Date().toLocaleTimeString();
+    runInterval=setInterval(updateRunHours,1000);
+    logAlarm("RUN",v,"Running");
+    lastState="RUN";
+  }
+ }
+ else if(v<TRIP){
+  stateText.textContent="WARN";
+  lampWarn.classList.add("yellow");
+  if(lastState!=="WARN"){
+    logAlarm("WARN",v,"High vibration");
+    lastState="WARN";
+  }
+ }
+ else{
+  stateText.textContent="TRIP";
+  lampTrip.classList.add("red");
+  rollerLeft.style.animation="none";
+  rollerRight.style.animation="none";
+  belt.style.animation="none";
+  if(lastState!=="TRIP"){
+    stopTime.textContent=new Date().toLocaleTimeString();
+    clearInterval(runInterval);
+    logAlarm("TRIP",v,"Auto shutdown");
+    lastState="TRIP";
+  }
+ }
+}
+
+db.ref("vibration/velocity_rms").on("value",s=>{
+ const val=s.val();
+ if(typeof val==="number")update(val);
+});
+
+db.ref("alarms").limitToLast(10).on("child_added",snap=>{
+ const a=snap.val();
+ const tr=document.createElement("tr");
+ tr.className=a.type==="TRIP"?"alarm-trip":a.type==="WARN"?"alarm-warn":"alarm-ok";
+ tr.innerHTML=`<td>${new Date(a.time).toLocaleString()}</td>
+ <td>${a.type}</td><td>${a.value.toFixed(2)}</td><td>${a.message}</td>`;
+ alarmTable.prepend(tr);
+});
+</script>
 </body>
-
 </html>
